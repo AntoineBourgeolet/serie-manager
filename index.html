@@ -168,10 +168,7 @@
         <div class="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
       </div>
 
-      <!-- API key notice -->
-      <p class="text-xs text-zinc-500">
-        Requiert une clé API TMDB. Modifiez la constante <code class="text-brand">TMDB_API_KEY</code> dans le code.
-      </p>
+      <!-- API key notice removed — key is configured -->
     </div>
   </div>
 
@@ -226,7 +223,7 @@
     // ─────────────────────────────────────────────
     // CONFIGURATION
     // ─────────────────────────────────────────────
-    const TMDB_API_KEY = 'YOUR_TMDB_API_KEY_HERE'; // <-- remplacez par votre clé TMDB
+    const TMDB_API_KEY = '5e573d9dae9e31dd3ceddb600489d1fa2';
     const TMDB_BASE    = 'https://api.themoviedb.org/3';
     const IMG_BASE     = 'https://image.tmdb.org/t/p/w300';
     const LS_KEY       = 'series_tracker_data';
@@ -569,12 +566,6 @@
       if (!query.trim()) {
         suggestionsEl.classList.add('hidden');
         suggestionsEl.innerHTML = '';
-        return;
-      }
-
-      if (TMDB_API_KEY === 'YOUR_TMDB_API_KEY_HERE') {
-        errorMsgEl.textContent = 'Clé API TMDB manquante. Ajoutez votre clé dans le code source.';
-        errorEl.classList.remove('hidden');
         return;
       }
 
