@@ -223,8 +223,9 @@
     // ─────────────────────────────────────────────
     // CONFIGURATION
     // ─────────────────────────────────────────────
-    const TMDB_API_KEY = '5e573d9dae9e31dd3ceddb600489d1fa2';
-    const TMDB_BASE    = 'https://api.themoviedb.org/3';
+    const TMDB_API_KEY     = 'd2d0931ffde11614c830b92bdb60e9a5';
+    const TMDB_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkMmQwOTMxZmZkZTExNjE0YzgzMGI5MmJkYjYwZTlhNSIsIm5iZiI6MTU0MTMzNTAyOC4zMzcsInN1YiI6IjViZGVlN2Y0YzNhMzY4MmIzZDAyNTBjMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.C7CwUAfoVfBpmQiGJedwlTwxtOX-F9W2eHy7_U8BfNs';
+    const TMDB_BASE        = 'https://api.themoviedb.org/3';
     const IMG_BASE     = 'https://image.tmdb.org/t/p/w300';
     const LS_KEY       = 'series_tracker_data';
 
@@ -260,18 +261,22 @@
     // ─────────────────────────────────────────────
     // TMDB API
     // ─────────────────────────────────────────────
+    const TMDB_FETCH_OPTS = {
+      headers: { Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
+    };
+
     async function fetchData(query) {
       if (!query.trim()) return [];
-      const url = `${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}&language=fr-FR`;
-      const resp = await fetch(url);
+      const url = `${TMDB_BASE}/search/tv?query=${encodeURIComponent(query)}&language=fr-FR`;
+      const resp = await fetch(url, TMDB_FETCH_OPTS);
       if (!resp.ok) throw new Error(`TMDB erreur ${resp.status}`);
       const data = await resp.json();
       return data.results || [];
     }
 
     async function fetchSeriesDetails(tmdbId) {
-      const url = `${TMDB_BASE}/tv/${tmdbId}?api_key=${TMDB_API_KEY}&language=fr-FR`;
-      const resp = await fetch(url);
+      const url = `${TMDB_BASE}/tv/${tmdbId}?language=fr-FR`;
+      const resp = await fetch(url, TMDB_FETCH_OPTS);
       if (!resp.ok) return null;
       return resp.json();
     }
