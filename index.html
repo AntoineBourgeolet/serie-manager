@@ -4,81 +4,128 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Series Tracker</title>
-
-  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-  <!-- PapaParse -->
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: { DEFAULT: '#6366f1', hover: '#4f46e5' },
-            surface: { DEFAULT: '#18181b', card: '#27272a', border: '#3f3f46' }
-          }
-        }
-      }
+      theme: { extend: { colors: {
+        brand: { DEFAULT: '#6366f1', hover: '#4f46e5' },
+        surface: { DEFAULT: '#18181b', card: '#27272a', border: '#3f3f46' }
+      }}}
     };
   </script>
-
   <style>
     body { background-color: #18181b; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #27272a; }
     ::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 4px; }
     .card-transition { transition: transform 0.15s ease, box-shadow 0.15s ease; }
-    .card-transition:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(99,102,241,0.25); }
+    .card-transition:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.18); }
     .modal-backdrop { backdrop-filter: blur(4px); }
     .suggestion-item:hover { background-color: #3f3f46; }
   </style>
 </head>
 <body class="dark min-h-screen text-zinc-100 flex">
 
-  <!-- ============================================================
-       SIDEBAR
-  ============================================================ -->
+  <!-- TMDB API KEY SETUP MODAL -->
+  <div id="modal-apikey" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-brand flex items-center justify-center shrink-0">
+            <i data-lucide="key" class="w-5 h-5 text-white"></i>
+          </div>
+          <h3 class="text-lg font-semibold">Cl&eacute; API TMDB</h3>
+        </div>
+        <button id="apikey-close" class="hidden p-1.5 rounded-lg hover:bg-surface-border transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <p class="text-sm text-zinc-400">SeriesTracker utilise l&#39;API TMDB pour rechercher des s&eacute;ries. Entrez votre propre cl&eacute; API gratuite.</p>
+      <ol class="text-sm text-zinc-400 space-y-1.5 list-decimal list-inside">
+        <li>Cr&eacute;ez un compte sur <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener" class="text-brand hover:underline">themoviedb.org</a></li>
+        <li>Allez dans <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener" class="text-brand hover:underline">Param&egrave;tres &rarr; API</a></li>
+        <li>Copiez votre <strong class="text-zinc-300">cl&eacute; API (v3 auth)</strong></li>
+      </ol>
+      <div>
+        <label class="text-xs text-zinc-400 uppercase tracking-wider">Cl&eacute; API TMDB</label>
+        <input id="apikey-input" type="password" placeholder="Entrez votre cl&eacute; API&hellip;"
+          class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
+      </div>
+      <p class="text-xs text-zinc-600">Votre cl&eacute; est stock&eacute;e uniquement dans votre navigateur et n&#39;est jamais envoy&eacute;e &agrave; des tiers.</p>
+      <p id="apikey-error" class="hidden text-red-400 text-xs"></p>
+      <button id="apikey-save" class="w-full px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
+        Valider et continuer
+      </button>
+    </div>
+  </div>
+
+  <!-- GOOGLE DRIVE SETUP MODAL -->
+  <div id="modal-gd-setup" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-lg mx-4 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+            <i data-lucide="cloud" class="w-5 h-5 text-blue-400"></i>
+          </div>
+          <h3 class="text-lg font-semibold">Configurer Google Drive</h3>
+        </div>
+        <button id="gd-setup-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <p class="text-sm text-zinc-400">Pour sauvegarder votre CSV sur Google Drive, vous avez besoin d&#39;un identifiant client OAuth 2.0 Google.</p>
+      <ol class="text-sm text-zinc-400 space-y-1.5 list-decimal list-inside">
+        <li>Ouvrez <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand hover:underline">Google Cloud Console &rarr; Credentials</a></li>
+        <li>Cr&eacute;ez un projet, activez l&#39;<strong class="text-zinc-300">API Google Drive</strong></li>
+        <li>Cr&eacute;ez des identifiants : <strong class="text-zinc-300">OAuth 2.0 &rarr; Application Web</strong></li>
+        <li>Ajoutez <code id="current-origin" class="text-zinc-300 bg-zinc-700 px-1 py-0.5 rounded text-xs"></code> dans les origines JavaScript autoris&eacute;es</li>
+        <li>Copiez votre <strong class="text-zinc-300">Client ID</strong></li>
+      </ol>
+      <div>
+        <label class="text-xs text-zinc-400 uppercase tracking-wider">Google OAuth Client ID</label>
+        <input id="gd-clientid-input" type="text" placeholder="xxxxxxx.apps.googleusercontent.com"
+          class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
+      </div>
+      <div class="flex gap-3">
+        <button id="gd-setup-save" class="flex-1 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
+          Enregistrer et sauvegarder
+        </button>
+        <button id="gd-setup-cancel" class="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium transition-colors">
+          Annuler
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIDEBAR -->
   <aside id="sidebar" class="w-64 shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0 overflow-y-auto">
-    <!-- Logo -->
     <div class="px-6 py-5 border-b border-surface-border flex items-center gap-3">
       <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
         <i data-lucide="tv-2" class="w-4 h-4 text-white"></i>
       </div>
       <span class="text-lg font-bold tracking-tight">SeriesTracker</span>
     </div>
-
-    <!-- Filters -->
     <nav class="px-3 py-4 flex-1">
-      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Bibliothèque</p>
+      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Biblioth&egrave;que</p>
       <ul id="sidebar-nav" class="space-y-1">
-        <li>
-          <button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white">
-            <i data-lucide="layout-grid" class="w-4 h-4"></i> Toutes les séries
-          </button>
-        </li>
-        <li>
-          <button data-filter="watching" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-            <i data-lucide="play-circle" class="w-4 h-4"></i> En cours
-          </button>
-        </li>
-        <li>
-          <button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Terminé
-          </button>
-        </li>
-        <li>
-          <button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-            <i data-lucide="bookmark" class="w-4 h-4"></i> Watchlist
-          </button>
-        </li>
+        <li><button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i> Toutes les s&eacute;ries
+        </button></li>
+        <li><button data-filter="watching" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="play-circle" class="w-4 h-4"></i> En cours
+        </button></li>
+        <li><button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i> Termin&eacute;
+        </button></li>
+        <li><button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="bookmark" class="w-4 h-4"></i> Watchlist
+        </button></li>
       </ul>
     </nav>
-
-    <!-- Data actions -->
     <div class="px-4 py-4 border-t border-surface-border space-y-2">
       <label class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-zinc-700 hover:bg-zinc-600 transition-colors">
         <i data-lucide="upload" class="w-4 h-4"></i> Importer CSV
@@ -87,114 +134,88 @@
       <button id="btn-export" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors">
         <i data-lucide="download" class="w-4 h-4"></i> Exporter CSV
       </button>
+      <button id="btn-gdrive" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors">
+        <i data-lucide="cloud-upload" class="w-4 h-4"></i> Sauvegarder sur Drive
+      </button>
+      <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500">
+        <i data-lucide="key" class="w-3.5 h-3.5"></i> Cl&eacute; API TMDB
+      </button>
     </div>
   </aside>
 
-  <!-- ============================================================
-       MAIN CONTENT
-  ============================================================ -->
+  <!-- MAIN CONTENT -->
   <main class="flex-1 flex flex-col min-h-screen overflow-y-auto">
-
-    <!-- Top bar -->
     <header class="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-surface-border px-6 py-4 flex items-center gap-4">
       <div class="relative flex-1 max-w-md">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
-        <input id="search-input" type="text" placeholder="Rechercher une série…"
+        <input id="search-input" type="text" placeholder="Rechercher une s&eacute;rie&hellip;"
           class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
       <button id="btn-add" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
-        <i data-lucide="plus" class="w-4 h-4"></i> Ajouter une série
+        <i data-lucide="plus" class="w-4 h-4"></i> Ajouter une s&eacute;rie
       </button>
     </header>
-
     <div class="px-6 py-6 space-y-6">
-
-      <!-- Stats banner -->
-      <div id="stats-banner" class="grid grid-cols-3 gap-4">
-        <!-- populated by JS -->
-      </div>
-
-      <!-- Toast notification area -->
+      <div id="stats-banner" class="space-y-3"></div>
       <div id="toast-area" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
-
-      <!-- Series grid -->
       <div>
         <div class="flex items-center justify-between mb-4">
-          <h2 id="section-title" class="text-lg font-semibold">Toutes les séries</h2>
+          <h2 id="section-title" class="text-lg font-semibold">Toutes les s&eacute;ries</h2>
           <span id="series-count" class="text-sm text-zinc-500"></span>
         </div>
-        <div id="series-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          <!-- cards injected by JS -->
-        </div>
+        <div id="series-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"></div>
         <p id="empty-state" class="hidden text-center py-20 text-zinc-500 text-sm">
-          Aucune série trouvée. Ajoutez-en une !
+          Aucune s&eacute;rie trouv&eacute;e. Ajoutez-en une !
         </p>
       </div>
     </div>
   </main>
 
-  <!-- ============================================================
-       ADD SERIES MODAL
-  ============================================================ -->
+  <!-- ADD SERIES MODAL -->
   <div id="modal-add" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop bg-black/60">
     <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold">Ajouter une série</h3>
+        <h3 class="text-lg font-semibold">Ajouter une s&eacute;rie</h3>
         <button id="modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-
-      <!-- Search box -->
       <div class="relative">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
-        <input id="tmdb-search-input" type="text" placeholder="Rechercher sur TMDB…"
+        <input id="tmdb-search-input" type="text" placeholder="Rechercher sur TMDB&hellip;"
           class="w-full bg-surface border border-surface-border rounded-lg pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
-
-      <!-- Suggestions list -->
-      <div id="tmdb-suggestions" class="hidden bg-surface border border-surface-border rounded-lg max-h-72 overflow-y-auto divide-y divide-surface-border">
-        <!-- populated by JS -->
-      </div>
-
-      <!-- TMDB error -->
+      <div id="tmdb-suggestions" class="hidden bg-surface border border-surface-border rounded-lg max-h-72 overflow-y-auto divide-y divide-surface-border"></div>
       <p id="tmdb-error" class="hidden text-red-400 text-sm flex items-center gap-2">
         <i data-lucide="alert-circle" class="w-4 h-4"></i>
         <span id="tmdb-error-msg"></span>
       </p>
-
-      <!-- Loading spinner -->
       <div id="tmdb-loading" class="hidden flex justify-center py-2">
         <div class="w-5 h-5 border-2 border-brand border-t-transparent rounded-full animate-spin"></div>
       </div>
-
-      <!-- API key notice removed — key is configured -->
     </div>
   </div>
 
-  <!-- ============================================================
-       EDIT MODAL
-  ============================================================ -->
+  <!-- EDIT MODAL -->
   <div id="modal-edit" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop bg-black/60">
     <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl">
       <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold" id="edit-modal-title">Modifier</h3>
-        <button id="edit-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
+        <h3 class="text-lg font-semibold truncate pr-2" id="edit-modal-title">Modifier</h3>
+        <button id="edit-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-
       <div class="space-y-3">
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Statut</label>
           <select id="edit-status" class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
             <option value="watchlist">Watchlist</option>
             <option value="watching">En cours</option>
-            <option value="completed">Terminé</option>
+            <option value="completed">Termin&eacute;</option>
           </select>
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Note personnelle (0–10, par 0.5)</label>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Note personnelle (0&ndash;10, par 0.5)</label>
           <input id="edit-rating" type="number" min="0" max="10" step="0.5"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
@@ -203,8 +224,12 @@
           <input id="edit-season" type="number" min="1"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
+        <div>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage</label>
+          <input id="edit-viewing-date" type="date"
+            class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+        </div>
       </div>
-
       <div class="flex gap-3 pt-2">
         <button id="edit-save" class="flex-1 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
           Enregistrer
@@ -216,159 +241,260 @@
     </div>
   </div>
 
-  <!-- ============================================================
-       JAVASCRIPT
-  ============================================================ -->
   <script>
-    // ─────────────────────────────────────────────
-    // CONFIGURATION
-    // ─────────────────────────────────────────────
-    const TMDB_API_KEY     = 'd2d0931ffde11614c830b92bdb60e9a5';
-    const TMDB_BEARER_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJkMmQwOTMxZmZkZTExNjE0YzgzMGI5MmJkYjYwZTlhNSIsIm5iZiI6MTU0MTMzNTAyOC4zMzcsInN1YiI6IjViZGVlN2Y0YzNhMzY4MmIzZDAyNTBjMyIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.C7CwUAfoVfBpmQiGJedwlTwxtOX-F9W2eHy7_U8BfNs';
-    const TMDB_BASE        = 'https://api.themoviedb.org/3';
-    const IMG_BASE     = 'https://image.tmdb.org/t/p/w300';
-    const LS_KEY       = 'series_tracker_data';
 
-    // ─────────────────────────────────────────────
-    // STATE
-    // ─────────────────────────────────────────────
-    let seriesList  = [];   // Array of series objects
+    // ─── CONFIGURATION ───────────────────────────
+    const TMDB_BASE  = 'https://api.themoviedb.org/3';
+    const IMG_BASE   = 'https://image.tmdb.org/t/p/w300';
+    const LS_KEY     = 'series_tracker_data';
+    const LS_API_KEY = 'series_tracker_tmdb_key';
+    const LS_GD_KEY  = 'series_tracker_gd_client_id';
+
+    // ─── STATE ───────────────────────────────────
+    let seriesList   = [];
     let activeFilter = 'all';
     let searchQuery  = '';
     let editingId    = null;
     let tmdbDebounce = null;
 
-    // ─────────────────────────────────────────────
-    // DATA PERSISTENCE
-    // ─────────────────────────────────────────────
-    function saveToLocal() {
-      try {
-        localStorage.setItem(LS_KEY, JSON.stringify(seriesList));
-      } catch (e) {
-        showToast('Impossible de sauvegarder dans localStorage.', 'error');
+    // ─── API KEY MANAGEMENT ──────────────────────
+    function getTmdbKey()       { return localStorage.getItem(LS_API_KEY) || ''; }
+    function saveTmdbKey(key)   { localStorage.setItem(LS_API_KEY, key.trim()); }
+    function hasTmdbKey()       { return !!getTmdbKey(); }
+    function getGdClientId()    { return localStorage.getItem(LS_GD_KEY) || ''; }
+    function saveGdClientId(id) { localStorage.setItem(LS_GD_KEY, id.trim()); }
+
+    function showApiKeyModal() {
+      document.getElementById('apikey-input').value = getTmdbKey();
+      document.getElementById('apikey-error').classList.add('hidden');
+      const closeBtn = document.getElementById('apikey-close');
+      if (hasTmdbKey()) closeBtn.classList.remove('hidden');
+      else closeBtn.classList.add('hidden');
+      document.getElementById('modal-apikey').classList.remove('hidden');
+    }
+
+    async function validateAndSaveTmdbKey() {
+      const key   = document.getElementById('apikey-input').value.trim();
+      const errEl = document.getElementById('apikey-error');
+      errEl.classList.add('hidden');
+      if (!key) {
+        errEl.textContent = 'Veuillez entrer une clé API.';
+        errEl.classList.remove('hidden');
+        return;
       }
+      try {
+        const resp = await fetch(`${TMDB_BASE}/configuration?api_key=${encodeURIComponent(key)}`);
+        if (resp.status === 401) {
+          errEl.textContent = 'Clé API invalide. Vérifiez sur themoviedb.org.';
+          errEl.classList.remove('hidden');
+          return;
+        }
+        if (!resp.ok) {
+          errEl.textContent = `Erreur de connexion (${resp.status}). Réessayez.`;
+          errEl.classList.remove('hidden');
+          return;
+        }
+        saveTmdbKey(key);
+        document.getElementById('modal-apikey').classList.add('hidden');
+        showToast('Clé API TMDB enregistrée !', 'success');
+      } catch {
+        errEl.textContent = 'Impossible de contacter TMDB. Vérifiez votre connexion.';
+        errEl.classList.remove('hidden');
+      }
+    }
+
+    // ─── DATA PERSISTENCE ────────────────────────
+    function saveToLocal() {
+      try { localStorage.setItem(LS_KEY, JSON.stringify(seriesList)); }
+      catch { showToast('Impossible de sauvegarder dans localStorage.', 'error'); }
     }
 
     function loadFromLocal() {
-      try {
-        const raw = localStorage.getItem(LS_KEY);
-        if (raw) seriesList = JSON.parse(raw);
-      } catch (e) {
-        seriesList = [];
-      }
+      try { const raw = localStorage.getItem(LS_KEY); if (raw) seriesList = JSON.parse(raw); }
+      catch { seriesList = []; }
     }
 
-    // ─────────────────────────────────────────────
-    // TMDB API
-    // ─────────────────────────────────────────────
-    const TMDB_FETCH_OPTS = {
-      headers: { Authorization: `Bearer ${TMDB_BEARER_TOKEN}` }
-    };
+    // ─── TMDB API ────────────────────────────────
+    function buildTmdbUrl(path, extra = {}) {
+      const params = new URLSearchParams({ api_key: getTmdbKey(), language: 'fr-FR', ...extra });
+      return `${TMDB_BASE}${path}?${params}`;
+    }
 
     async function fetchData(query) {
       if (!query.trim()) return [];
-      const url = `${TMDB_BASE}/search/tv?query=${encodeURIComponent(query)}&language=fr-FR`;
-      const resp = await fetch(url, TMDB_FETCH_OPTS);
+      if (!hasTmdbKey()) { showApiKeyModal(); return []; }
+      const resp = await fetch(buildTmdbUrl('/search/tv', { query }));
+      if (resp.status === 401) { showApiKeyModal(); throw new Error('Clé API invalide'); }
       if (!resp.ok) throw new Error(`TMDB erreur ${resp.status}`);
-      const data = await resp.json();
-      return data.results || [];
+      return (await resp.json()).results || [];
     }
 
     async function fetchSeriesDetails(tmdbId) {
-      const url = `${TMDB_BASE}/tv/${tmdbId}?language=fr-FR`;
-      const resp = await fetch(url, TMDB_FETCH_OPTS);
+      if (!hasTmdbKey()) return null;
+      const resp = await fetch(buildTmdbUrl(`/tv/${tmdbId}`));
       if (!resp.ok) return null;
       return resp.json();
     }
 
-    // ─────────────────────────────────────────────
-    // CSV IMPORT / EXPORT
-    // ─────────────────────────────────────────────
+    // ─── CSV IMPORT / EXPORT ─────────────────────
+    const CSV_FIELDS = ['id','tmdbId','name','status','rating','season','totalSeasons',
+                        'year','poster','overview','episodesTotal','episodeRuntime','viewingDate'];
+
+    function generateCSV() {
+      return Papa.unparse({ fields: CSV_FIELDS, data: seriesList.map(s => CSV_FIELDS.map(f => s[f] ?? '')) });
+    }
+
     function exportToCSV() {
-      const fields = ['id','tmdbId','name','status','rating','season','year','poster','overview','episodesTotal','episodeRuntime'];
-      const csv = Papa.unparse({ fields, data: seriesList.map(s => fields.map(f => s[f] ?? '')) });
+      const csv  = generateCSV();
       const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      a.href     = url;
-      a.download = 'series_update.csv';
-      a.click();
+      a.href = url; a.download = 'series_tracker.csv'; a.click();
       URL.revokeObjectURL(url);
       showToast('Export CSV téléchargé !', 'success');
     }
 
     function importCSV(file) {
       Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          if (!results.data.length) {
-            showToast('Fichier CSV vide ou invalide.', 'error');
-            return;
-          }
-          // Merge: keep existing by id, add/overwrite from CSV
-          const incoming = results.data.map(row => ({
-            id: row.id || generateId(),
-            tmdbId: row.tmdbId ? Number(row.tmdbId) : null,
-            name: row.name || '',
-            status: ['watching','completed','watchlist'].includes(row.status) ? row.status : 'watchlist',
-            rating: row.rating !== '' && row.rating != null ? Number(row.rating) : null,
-            season: row.season ? Number(row.season) : 1,
-            year: row.year || '',
-            poster: row.poster || '',
-            overview: row.overview || '',
-            episodesTotal: row.episodesTotal ? Number(row.episodesTotal) : null,
+        header: true, skipEmptyLines: true,
+        complete: ({ data }) => {
+          if (!data.length) { showToast('Fichier CSV vide ou invalide.', 'error'); return; }
+          seriesList = data.map(row => ({
+            id:             row.id            || generateId(),
+            tmdbId:         row.tmdbId        ? Number(row.tmdbId)        : null,
+            name:           row.name          || '',
+            status:         ['watching','completed','watchlist'].includes(row.status) ? row.status : 'watchlist',
+            rating:         row.rating !== '' && row.rating != null ? Number(row.rating) : null,
+            season:         row.season        ? Number(row.season)        : 1,
+            totalSeasons:   row.totalSeasons  ? Number(row.totalSeasons)  : null,
+            year:           row.year          || '',
+            poster:         row.poster        || '',
+            overview:       row.overview      || '',
+            episodesTotal:  row.episodesTotal  ? Number(row.episodesTotal)  : null,
             episodeRuntime: row.episodeRuntime ? Number(row.episodeRuntime) : null,
+            viewingDate:    row.viewingDate    || '',
           }));
-          // Overwrite list
-          seriesList = incoming;
-          saveToLocal();
-          updateUI();
-          showToast(`${incoming.length} série(s) importée(s).`, 'success');
+          saveToLocal(); updateUI();
+          showToast(`${seriesList.length} série(s) importée(s).`, 'success');
         },
         error: () => showToast('Erreur lors de la lecture du CSV.', 'error')
       });
     }
 
-    // ─────────────────────────────────────────────
-    // UTILITIES
-    // ─────────────────────────────────────────────
+    // ─── GOOGLE DRIVE ────────────────────────────
+    function openGdSetupModal() {
+      document.getElementById('gd-clientid-input').value = getGdClientId();
+      document.getElementById('current-origin').textContent = location.origin;
+      document.getElementById('modal-gd-setup').classList.remove('hidden');
+    }
+
+    function closeGdSetupModal() {
+      document.getElementById('modal-gd-setup').classList.add('hidden');
+    }
+
+    async function saveToGoogleDrive() {
+      const clientId = getGdClientId();
+      if (!clientId) { openGdSetupModal(); return; }
+      if (typeof google === 'undefined' || !google.accounts) {
+        showToast('Bibliothèque Google non chargée. Réessayez.', 'error');
+        return;
+      }
+      const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: async (response) => {
+          if (response.error) {
+            console.error('Google OAuth error:', response.error);
+            showToast('Échec de l\'authentification Google. Vérifiez votre Client ID.', 'error');
+            return;
+          }
+          await uploadCsvToDrive(response.access_token);
+        },
+      });
+      tokenClient.requestAccessToken();
+    }
+
+    async function uploadCsvToDrive(token) {
+      const csv  = generateCSV();
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify({ name: 'series_tracker.csv', mimeType: 'text/csv' })], { type: 'application/json' }));
+      form.append('file', new Blob([csv], { type: 'text/csv' }));
+      try {
+        const resp = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+          { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
+        if (resp.ok) {
+          showToast('CSV sauvegardé sur Google Drive !', 'success');
+        } else {
+          const err = await resp.json().catch(() => ({}));
+          console.error('Google Drive upload error:', err);
+          showToast('Échec de la sauvegarde Drive. Vérifiez vos permissions.', 'error');
+        }
+      } catch { showToast('Erreur réseau Google Drive.', 'error'); }
+    }
+
+    // ─── UTILITIES ───────────────────────────────
     function generateId() {
       if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
       return Date.now().toString(36) + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
     }
+
+    function todayISO() { return new Date().toISOString().slice(0, 10); }
 
     function statusLabel(s) {
       return { watching: 'En cours', completed: 'Terminé', watchlist: 'Watchlist' }[s] || s;
     }
 
     function statusColor(s) {
-      return { watching: 'bg-blue-500/20 text-blue-400', completed: 'bg-green-500/20 text-green-400', watchlist: 'bg-yellow-500/20 text-yellow-400' }[s] || '';
+      return {
+        watching:  'bg-blue-500/20   text-blue-400   border border-blue-500/30',
+        completed: 'bg-green-500/20  text-green-400  border border-green-500/30',
+        watchlist: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
+      }[s] || '';
+    }
+
+    function nextStatus(s) {
+      return { watchlist: 'watching', watching: 'completed', completed: 'watchlist' }[s] || 'watchlist';
+    }
+
+    const AVG_DAYS_PER_MONTH = 30.44;
+
+    function formatTime(totalMinutes) {
+      if (!totalMinutes || totalMinutes <= 0) return '–';
+      const h  = Math.floor(totalMinutes / 60);
+      if (h < 24)  return h + 'h';
+      const d  = Math.floor(h / 24);
+      if (d < 30)  return d + 'j ' + (h % 24) + 'h';
+      const mo = Math.floor(d / AVG_DAYS_PER_MONTH);
+      if (mo < 12) return mo + 'mois ' + Math.floor(d % AVG_DAYS_PER_MONTH) + 'j';
+      const yr = Math.floor(mo / 12);
+      return yr + 'an' + (yr > 1 ? 's' : '') + ' ' + (mo % 12) + 'mois';
     }
 
     function showToast(msg, type = 'info') {
-      const colors = { success: 'bg-green-700', error: 'bg-red-700', info: 'bg-zinc-700' };
+      const colors   = { success: 'bg-green-700', error: 'bg-red-700', info: 'bg-zinc-700' };
       const iconName = type === 'error' ? 'alert-circle' : 'check-circle';
       const t = document.createElement('div');
       t.setAttribute('role', 'alert');
       t.setAttribute('aria-live', 'assertive');
       t.className = `${colors[type]} text-white text-sm px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2`;
-      // Build icon element safely (no innerHTML for user content)
       const icon = document.createElement('i');
       icon.setAttribute('data-lucide', iconName);
       icon.className = 'w-4 h-4 shrink-0';
-      const text = document.createElement('span');
-      text.textContent = msg;
-      t.appendChild(icon);
-      t.appendChild(text);
+      const span = document.createElement('span');
+      span.textContent = msg;
+      t.appendChild(icon); t.appendChild(span);
       document.getElementById('toast-area').appendChild(t);
       lucide.createIcons({ icons: lucide.icons });
       setTimeout(() => t.remove(), 3500);
     }
 
-    // ─────────────────────────────────────────────
-    // FILTERED LIST
-    // ─────────────────────────────────────────────
+    // ─── XSS PROTECTION ──────────────────────────
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    // ─── FILTERED LIST ───────────────────────────
     function getFilteredList() {
       return seriesList.filter(s => {
         const matchFilter = activeFilter === 'all' || s.status === activeFilter;
@@ -377,141 +503,149 @@
       });
     }
 
-    // ─────────────────────────────────────────────
-    // STATS
-    // ─────────────────────────────────────────────
+    // ─── STATS ───────────────────────────────────
     function computeStats() {
-      const total     = seriesList.length;
-      const completed = seriesList.filter(s => s.status === 'completed').length;
-      const pct       = total ? Math.round((completed / total) * 100) : 0;
-      // Hours: episodesTotal * episodeRuntime (minutes) / 60
-      const hours = seriesList.reduce((acc, s) => {
-        if (s.episodesTotal && s.episodeRuntime) acc += (s.episodesTotal * s.episodeRuntime) / 60;
-        return acc;
-      }, 0);
-      return { total, completed, pct, hours: Math.round(hours) };
+      const byStatus    = st => seriesList.filter(s => s.status === st);
+      const watching    = byStatus('watching');
+      const completed   = byStatus('completed');
+      const watchlist   = byStatus('watchlist');
+      const totalEpFor  = list => list.reduce((a, s) => a + (s.episodesTotal  || 0), 0);
+      const totalMinFor = list => list.reduce((a, s) => a + ((s.episodesTotal || 0) * (s.episodeRuntime || 0)), 0);
+      return {
+        total: seriesList.length,
+        countWatching: watching.length, countCompleted: completed.length, countWatchlist: watchlist.length,
+        epWatching:  totalEpFor(watching),  epCompleted: totalEpFor(completed),
+        epWatchlist: totalEpFor(watchlist), epTotal:     totalEpFor(seriesList),
+        minWatching:  totalMinFor(watching),  minCompleted: totalMinFor(completed),
+        minWatchlist: totalMinFor(watchlist), minTotal:     totalMinFor(seriesList),
+      };
     }
 
-    // ─────────────────────────────────────────────
-    // UI RENDERING
-    // ─────────────────────────────────────────────
-    function updateUI() {
-      renderStats();
-      renderGrid();
-      renderSidebarCounts();
-    }
+    // ─── UI RENDERING ────────────────────────────
+    function updateUI() { renderStats(); renderGrid(); renderSidebarCounts(); }
 
     function renderStats() {
-      const { total, hours, pct } = computeStats();
-      const banner = document.getElementById('stats-banner');
-      banner.innerHTML = `
-        ${statCard('tv-2', 'Total de séries', total, 'indigo')}
-        ${statCard('clock', 'Heures regardées', hours > 0 ? hours + 'h' : '–', 'blue')}
-        ${statCard('pie-chart', 'Complétion', pct + '%', 'green')}
-      `;
+      const s = computeStats();
+      document.getElementById('stats-banner').innerHTML = `
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          ${statCard('tv-2','Total séries',s.total,'indigo')}
+          ${statCard('play-circle','En cours',s.countWatching,'blue')}
+          ${statCard('check-circle-2','Terminées',s.countCompleted,'green')}
+          ${statCard('bookmark','Watchlist',s.countWatchlist,'yellow')}
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          ${statCard('film','Épisodes en cours',s.epWatching||'–','blue')}
+          ${statCard('film','Épisodes terminés',s.epCompleted||'–','green')}
+          ${statCard('film','Épisodes à voir',s.epWatchlist||'–','yellow')}
+          ${statCard('film','Épisodes total',s.epTotal||'–','indigo')}
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          ${statCard('clock','Temps en cours',formatTime(s.minWatching),'blue')}
+          ${statCard('clock','Temps terminé',formatTime(s.minCompleted),'green')}
+          ${statCard('clock','Temps à voir',formatTime(s.minWatchlist),'yellow')}
+          ${statCard('clock','Temps total',formatTime(s.minTotal),'indigo')}
+        </div>`;
       lucide.createIcons({ icons: lucide.icons, attrs: { 'stroke-width': '1.5' } });
     }
 
     function statCard(icon, label, value, color) {
-      const colors = {
-        indigo: 'bg-indigo-500/10 text-indigo-400',
-        blue:   'bg-blue-500/10 text-blue-400',
-        green:  'bg-green-500/10 text-green-400',
-      };
-      return `
-        <div class="bg-surface-card border border-surface-border rounded-xl p-4 flex items-center gap-4">
-          <div class="w-10 h-10 rounded-lg ${colors[color]} flex items-center justify-center shrink-0">
-            <i data-lucide="${icon}" class="w-5 h-5"></i>
-          </div>
-          <div>
-            <p class="text-xs text-zinc-500 uppercase tracking-wider">${label}</p>
-            <p class="text-2xl font-bold">${value}</p>
-          </div>
-        </div>`;
+      const cls = { indigo:'bg-indigo-500/10 text-indigo-400', blue:'bg-blue-500/10 text-blue-400', green:'bg-green-500/10 text-green-400', yellow:'bg-yellow-500/10 text-yellow-400' };
+      return `<div class="bg-surface-card border border-surface-border rounded-xl p-3 flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg ${cls[color]} flex items-center justify-center shrink-0"><i data-lucide="${icon}" class="w-4 h-4"></i></div>
+        <div class="min-w-0"><p class="text-xs text-zinc-500 uppercase tracking-wider truncate">${label}</p><p class="text-xl font-bold">${value}</p></div>
+      </div>`;
     }
 
     function renderGrid() {
       const list  = getFilteredList();
       const grid  = document.getElementById('series-grid');
       const empty = document.getElementById('empty-state');
-      const count = document.getElementById('series-count');
-
-      count.textContent = `${list.length} série${list.length !== 1 ? 's' : ''}`;
-
-      if (!list.length) {
-        grid.innerHTML = '';
-        empty.classList.remove('hidden');
-        return;
-      }
+      document.getElementById('series-count').textContent = `${list.length} série${list.length !== 1 ? 's' : ''}`;
+      if (!list.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); return; }
       empty.classList.add('hidden');
-
       grid.innerHTML = list.map(seriesCard).join('');
       lucide.createIcons({ icons: lucide.icons, attrs: { 'stroke-width': '1.5' } });
-
-      // Attach card button listeners
       grid.querySelectorAll('[data-edit-id]').forEach(btn => {
         btn.addEventListener('click', () => openEditModal(btn.dataset.editId));
+      });
+      grid.querySelectorAll('[data-status-id]').forEach(btn => {
+        btn.addEventListener('click', e => { e.stopPropagation(); quickChangeStatus(btn.dataset.statusId); });
       });
     }
 
     function seriesCard(s) {
-      const placeholder = `https://placehold.co/300x450/27272a/6366f1?text=${encodeURIComponent(s.name.charAt(0))}`;
-      const img = s.poster ? IMG_BASE + s.poster : placeholder;
-      const stars = s.rating != null ? `<span class="text-yellow-400">★</span> ${s.rating}/10` : '–';
-
+      const placeholder = `https://placehold.co/120x180/27272a/6366f1?text=${encodeURIComponent(s.name.charAt(0))}`;
+      const img         = s.poster ? IMG_BASE + s.poster : placeholder;
+      const stars       = s.rating != null ? `★ ${s.rating}/10` : '';
+      const seasonInfo  = s.totalSeasons ? `S${s.season||1}/${s.totalSeasons}` : `S${s.season||1}`;
+      const epInfo      = s.episodesTotal ? `${s.episodesTotal} ép.` : '';
+      const timeInfo    = (s.episodesTotal && s.episodeRuntime) ? formatTime(s.episodesTotal * s.episodeRuntime) : '';
       return `
-        <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex flex-col">
-          <div class="relative">
-            <img src="${img}" alt="${escapeHtml(s.name)}" class="w-full aspect-[2/3] object-cover" loading="lazy"
-              onerror="this.src='${placeholder}'" />
-            <span class="absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full ${statusColor(s.status)}">
-              ${statusLabel(s.status)}
-            </span>
+        <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex">
+          <div class="shrink-0 w-16">
+            <img src="${escapeHtml(img)}" alt="${escapeHtml(s.name)}" class="w-16 h-full min-h-[96px] object-cover" loading="lazy"
+              onerror="this.src='${escapeHtml(placeholder)}'" />
           </div>
-          <div class="p-3 flex flex-col gap-1 flex-1">
+          <div class="p-2.5 flex flex-col flex-1 min-w-0 gap-1">
             <h3 class="font-semibold text-sm leading-tight line-clamp-2">${escapeHtml(s.name)}</h3>
-            <div class="flex items-center justify-between mt-auto pt-2">
-              <span class="text-xs text-zinc-400">${s.year || ''} · S${s.season || 1}</span>
-              <span class="text-xs text-zinc-400">${stars}</span>
+            <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+              <span class="text-xs text-zinc-500">${escapeHtml(s.year||'')}</span>
+              <span class="text-xs text-zinc-600">·</span>
+              <span class="text-xs text-zinc-500">${seasonInfo}</span>
+              ${epInfo   ? `<span class="text-xs text-zinc-600">·</span><span class="text-xs text-zinc-500">${epInfo}</span>` : ''}
+              ${timeInfo ? `<span class="text-xs text-zinc-600">·</span><span class="text-xs text-zinc-500">${timeInfo}</span>` : ''}
             </div>
-            <button data-edit-id="${s.id}"
-              class="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-xs font-medium transition-colors">
-              <i data-lucide="pencil" class="w-3 h-3"></i> Modifier
-            </button>
+            ${stars         ? `<span class="text-xs text-yellow-400">${stars}</span>` : ''}
+            ${s.viewingDate ? `<span class="text-xs text-zinc-600">${escapeHtml(s.viewingDate)}</span>` : ''}
+            <div class="mt-auto flex items-center gap-1.5 pt-1">
+              <button data-status-id="${s.id}"
+                class="flex-1 text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
+                title="Cliquer pour changer le statut">
+                ${statusLabel(s.status)}
+              </button>
+              <button data-edit-id="${s.id}" class="p-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors shrink-0" title="Modifier">
+                <i data-lucide="pencil" class="w-3 h-3"></i>
+              </button>
+            </div>
           </div>
         </div>`;
     }
 
+    function quickChangeStatus(id) {
+      const idx = seriesList.findIndex(s => s.id === id);
+      if (idx === -1) return;
+      const s = seriesList[idx];
+      seriesList[idx].status = nextStatus(s.status);
+      saveToLocal(); updateUI();
+      showToast(`"${s.name}" → ${statusLabel(seriesList[idx].status)}`, 'success');
+    }
+
     function renderSidebarCounts() {
       const map = { all: seriesList.length };
-      ['watching','completed','watchlist'].forEach(f => {
-        map[f] = seriesList.filter(s => s.status === f).length;
-      });
+      ['watching','completed','watchlist'].forEach(f => { map[f] = seriesList.filter(s => s.status === f).length; });
       document.querySelectorAll('.nav-btn').forEach(btn => {
-        const f = btn.dataset.filter;
-        // Add count badge
         const existing = btn.querySelector('.count-badge');
         if (existing) existing.remove();
-        if (map[f] > 0) {
+        const n = map[btn.dataset.filter];
+        if (n > 0) {
           const badge = document.createElement('span');
           badge.className = 'count-badge ml-auto text-xs bg-surface-border px-2 py-0.5 rounded-full';
-          badge.textContent = map[f];
+          badge.textContent = n;
           btn.appendChild(badge);
         }
       });
     }
 
-    // ─────────────────────────────────────────────
-    // EDIT MODAL
-    // ─────────────────────────────────────────────
+    // ─── EDIT MODAL ──────────────────────────────
     function openEditModal(id) {
       const s = seriesList.find(x => x.id === id);
       if (!s) return;
       editingId = id;
-      document.getElementById('edit-modal-title').textContent = s.name;
-      document.getElementById('edit-status').value = s.status || 'watchlist';
-      document.getElementById('edit-rating').value  = s.rating ?? '';
-      document.getElementById('edit-season').value  = s.season ?? 1;
+      document.getElementById('edit-modal-title').textContent    = s.name;
+      document.getElementById('edit-status').value               = s.status      || 'watchlist';
+      document.getElementById('edit-rating').value               = s.rating      ?? '';
+      document.getElementById('edit-season').value               = s.season      ?? 1;
+      document.getElementById('edit-viewing-date').value         = s.viewingDate || todayISO();
       document.getElementById('modal-edit').classList.remove('hidden');
     }
 
@@ -524,29 +658,25 @@
       if (!editingId) return;
       const idx = seriesList.findIndex(x => x.id === editingId);
       if (idx === -1) return;
-      seriesList[idx].status = document.getElementById('edit-status').value;
+      seriesList[idx].status      = document.getElementById('edit-status').value;
       const r = parseFloat(document.getElementById('edit-rating').value);
-      seriesList[idx].rating = isNaN(r) ? null : Math.min(10, Math.max(0, r));
-      seriesList[idx].season = parseInt(document.getElementById('edit-season').value) || 1;
-      saveToLocal();
-      updateUI();
-      closeEditModal();
+      seriesList[idx].rating      = isNaN(r) ? null : Math.min(10, Math.max(0, r));
+      seriesList[idx].season      = parseInt(document.getElementById('edit-season').value) || 1;
+      seriesList[idx].viewingDate = document.getElementById('edit-viewing-date').value || '';
+      saveToLocal(); updateUI(); closeEditModal();
       showToast('Série mise à jour !', 'success');
     }
 
     function deleteSeries() {
       if (!editingId) return;
       seriesList = seriesList.filter(x => x.id !== editingId);
-      saveToLocal();
-      updateUI();
-      closeEditModal();
+      saveToLocal(); updateUI(); closeEditModal();
       showToast('Série supprimée.', 'info');
     }
 
-    // ─────────────────────────────────────────────
-    // ADD MODAL & TMDB SEARCH
-    // ─────────────────────────────────────────────
+    // ─── ADD MODAL & TMDB SEARCH ─────────────────
     function openAddModal() {
+      if (!hasTmdbKey()) { showApiKeyModal(); return; }
       document.getElementById('tmdb-search-input').value = '';
       document.getElementById('tmdb-suggestions').innerHTML = '';
       document.getElementById('tmdb-suggestions').classList.add('hidden');
@@ -556,61 +686,40 @@
       document.getElementById('tmdb-search-input').focus();
     }
 
-    function closeAddModal() {
-      document.getElementById('modal-add').classList.add('hidden');
-    }
+    function closeAddModal() { document.getElementById('modal-add').classList.add('hidden'); }
 
     async function handleTmdbSearch(query) {
       const suggestionsEl = document.getElementById('tmdb-suggestions');
       const errorEl       = document.getElementById('tmdb-error');
       const loadingEl     = document.getElementById('tmdb-loading');
       const errorMsgEl    = document.getElementById('tmdb-error-msg');
-
       errorEl.classList.add('hidden');
-
-      if (!query.trim()) {
-        suggestionsEl.classList.add('hidden');
-        suggestionsEl.innerHTML = '';
-        return;
-      }
-
-      loadingEl.classList.remove('hidden');
-      suggestionsEl.classList.add('hidden');
-
+      if (!query.trim()) { suggestionsEl.classList.add('hidden'); suggestionsEl.innerHTML = ''; return; }
+      loadingEl.classList.remove('hidden'); suggestionsEl.classList.add('hidden');
       try {
         const results = await fetchData(query);
         loadingEl.classList.add('hidden');
-
         if (!results.length) {
           errorMsgEl.textContent = 'Aucune série trouvée pour ce titre.';
-          errorEl.classList.remove('hidden');
-          return;
+          errorEl.classList.remove('hidden'); return;
         }
-
-        // Store results in a closure-safe map to avoid JSON-in-HTML-attribute XSS
         const resultMap = {};
         suggestionsEl.innerHTML = results.slice(0, 8).map((r, i) => {
           resultMap[i] = r;
-          const imgSrc = r.poster_path
-            ? IMG_BASE + r.poster_path
-            : 'https://placehold.co/60x90/27272a/6366f1?text=?';
-          return `
-            <button class="suggestion-item w-full flex items-center gap-3 p-3 text-left transition-colors" data-result-index="${i}">
-              <img src="${escapeHtml(imgSrc)}" alt="" class="w-10 h-14 object-cover rounded shrink-0" />
-              <div class="overflow-hidden">
-                <p class="font-medium text-sm truncate">${escapeHtml(r.name)}</p>
-                <p class="text-xs text-zinc-400">${r.first_air_date ? escapeHtml(r.first_air_date.slice(0,4)) : '–'}</p>
-                <p class="text-xs text-zinc-500 line-clamp-2 mt-0.5">${escapeHtml(r.overview || '')}</p>
-              </div>
-            </button>
-          `;
+          const imgSrc = r.poster_path ? IMG_BASE + r.poster_path : 'https://placehold.co/60x90/27272a/6366f1?text=?';
+          return `<button class="suggestion-item w-full flex items-center gap-3 p-3 text-left transition-colors" data-result-index="${i}">
+            <img src="${escapeHtml(imgSrc)}" alt="" class="w-10 h-14 object-cover rounded shrink-0" />
+            <div class="overflow-hidden">
+              <p class="font-medium text-sm truncate">${escapeHtml(r.name)}</p>
+              <p class="text-xs text-zinc-400">${r.first_air_date ? escapeHtml(r.first_air_date.slice(0,4)) : '–'}</p>
+              <p class="text-xs text-zinc-500 line-clamp-2 mt-0.5">${escapeHtml(r.overview||'')}</p>
+            </div>
+          </button>`;
         }).join('');
         suggestionsEl.classList.remove('hidden');
-
         suggestionsEl.querySelectorAll('.suggestion-item').forEach(btn => {
           btn.addEventListener('click', () => addSeriesFromTmdb(resultMap[Number(btn.dataset.resultIndex)]));
         });
-
       } catch (err) {
         loadingEl.classList.add('hidden');
         errorMsgEl.textContent = `Erreur API TMDB : ${err.message}`;
@@ -619,116 +728,102 @@
     }
 
     async function addSeriesFromTmdb(tmdbResult) {
-      // Try to get more details (for episode count & runtime)
       const details = await fetchSeriesDetails(tmdbResult.id).catch(() => null);
-
-      const series = {
-        id: generateId(),
-        tmdbId: tmdbResult.id,
-        name: tmdbResult.name,
-        status: 'watchlist',
-        rating: null,
-        season: 1,
-        year: tmdbResult.first_air_date ? tmdbResult.first_air_date.slice(0, 4) : '',
-        poster: tmdbResult.poster_path || '',
-        overview: tmdbResult.overview || '',
-        episodesTotal: details ? (details.number_of_episodes || null) : null,
-        episodeRuntime: details && details.episode_run_time && details.episode_run_time[0]
-          ? details.episode_run_time[0] : null,
+      const series  = {
+        id:             generateId(),
+        tmdbId:         tmdbResult.id,
+        name:           tmdbResult.name,
+        status:         'watchlist',
+        rating:         null,
+        season:         1,
+        totalSeasons:   details ? (details.number_of_seasons  || null) : null,
+        year:           tmdbResult.first_air_date ? tmdbResult.first_air_date.slice(0, 4) : '',
+        poster:         tmdbResult.poster_path    || '',
+        overview:       tmdbResult.overview       || '',
+        episodesTotal:  details ? (details.number_of_episodes || null) : null,
+        episodeRuntime: details && details.episode_run_time && details.episode_run_time[0] ? details.episode_run_time[0] : null,
+        viewingDate:    todayISO(),
       };
-
-      // Avoid duplicates
       if (seriesList.some(s => s.tmdbId === series.tmdbId)) {
-        showToast('Cette série est déjà dans votre liste.', 'info');
-        return;
+        showToast('Cette série est déjà dans votre liste.', 'info'); return;
       }
-
       seriesList.push(series);
-      saveToLocal();
-      updateUI();
-      closeAddModal();
+      saveToLocal(); updateUI(); closeAddModal();
       showToast(`"${series.name}" ajoutée à la watchlist !`, 'success');
     }
 
-    // ─────────────────────────────────────────────
-    // XSS PROTECTION
-    // ─────────────────────────────────────────────
-    function escapeHtml(str) {
-      if (!str) return '';
-      return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;');
-    }
-
-    // ─────────────────────────────────────────────
-    // EVENT LISTENERS
-    // ─────────────────────────────────────────────
+    // ─── EVENT LISTENERS ─────────────────────────
     document.getElementById('btn-add').addEventListener('click', openAddModal);
     document.getElementById('modal-close').addEventListener('click', closeAddModal);
     document.getElementById('edit-modal-close').addEventListener('click', closeEditModal);
     document.getElementById('edit-save').addEventListener('click', saveEdit);
     document.getElementById('edit-delete').addEventListener('click', deleteSeries);
     document.getElementById('btn-export').addEventListener('click', exportToCSV);
-
+    document.getElementById('btn-gdrive').addEventListener('click', saveToGoogleDrive);
+    document.getElementById('btn-apikey').addEventListener('click', showApiKeyModal);
+    document.getElementById('apikey-close').addEventListener('click', () => {
+      document.getElementById('modal-apikey').classList.add('hidden');
+    });
+    document.getElementById('apikey-save').addEventListener('click', validateAndSaveTmdbKey);
+    document.getElementById('apikey-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') validateAndSaveTmdbKey();
+    });
+    document.getElementById('gd-setup-close').addEventListener('click', closeGdSetupModal);
+    document.getElementById('gd-setup-cancel').addEventListener('click', closeGdSetupModal);
+    document.getElementById('gd-setup-save').addEventListener('click', () => {
+      const id = document.getElementById('gd-clientid-input').value.trim();
+      if (!id) return;
+      saveGdClientId(id); closeGdSetupModal();
+      showToast('Client ID Google Drive enregistré !', 'success');
+      saveToGoogleDrive();
+    });
     document.getElementById('modal-add').addEventListener('click', e => {
       if (e.target === document.getElementById('modal-add')) closeAddModal();
     });
     document.getElementById('modal-edit').addEventListener('click', e => {
       if (e.target === document.getElementById('modal-edit')) closeEditModal();
     });
-
-    // Search input
-    document.getElementById('search-input').addEventListener('input', e => {
-      searchQuery = e.target.value;
-      updateUI();
+    document.getElementById('modal-gd-setup').addEventListener('click', e => {
+      if (e.target === document.getElementById('modal-gd-setup')) closeGdSetupModal();
     });
-
-    // TMDB search with debounce
+    document.getElementById('search-input').addEventListener('input', e => {
+      searchQuery = e.target.value; updateUI();
+    });
     document.getElementById('tmdb-search-input').addEventListener('input', e => {
       clearTimeout(tmdbDebounce);
       tmdbDebounce = setTimeout(() => handleTmdbSearch(e.target.value), 400);
     });
-
-    // Sidebar filter
     document.querySelectorAll('.nav-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         activeFilter = btn.dataset.filter;
-
-        // Update styles
         document.querySelectorAll('.nav-btn').forEach(b => {
-          b.classList.remove('bg-brand', 'text-white');
-          b.classList.add('text-zinc-400', 'hover:bg-surface-border', 'hover:text-white');
+          b.classList.remove('bg-brand','text-white');
+          b.classList.add('text-zinc-400','hover:bg-surface-border','hover:text-white');
         });
-        btn.classList.add('bg-brand', 'text-white');
-        btn.classList.remove('text-zinc-400', 'hover:bg-surface-border', 'hover:text-white');
-
-        // Update section title
-        const titles = { all: 'Toutes les séries', watching: 'En cours', completed: 'Terminées', watchlist: 'Watchlist' };
+        btn.classList.add('bg-brand','text-white');
+        btn.classList.remove('text-zinc-400','hover:bg-surface-border','hover:text-white');
+        const titles = { all:'Toutes les séries', watching:'En cours', completed:'Terminées', watchlist:'Watchlist' };
         document.getElementById('section-title').textContent = titles[activeFilter] || 'Séries';
-
         updateUI();
       });
     });
-
-    // CSV import
     document.getElementById('csv-import-input').addEventListener('change', e => {
       const file = e.target.files[0];
       if (file) importCSV(file);
-      e.target.value = ''; // reset so same file can be re-imported
+      e.target.value = '';
     });
-
-    // Keyboard shortcut: Escape closes modals
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') {
-        closeAddModal();
-        closeEditModal();
-      }
+      if (e.key !== 'Escape') return;
+      closeAddModal(); closeEditModal(); closeGdSetupModal();
+      if (hasTmdbKey()) document.getElementById('modal-apikey').classList.add('hidden');
     });
 
-    // ─────────────────────────────────────────────
-    // INITIALISE
-    // ─────────────────────────────────────────────
+    // ─── INITIALISE ──────────────────────────────
     loadFromLocal();
     lucide.createIcons();
     updateUI();
+    if (!hasTmdbKey()) showApiKeyModal();
+
   </script>
 </body>
 </html>
