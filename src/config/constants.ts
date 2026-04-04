@@ -12,3 +12,4 @@ export const TMDB_SUGGESTIONS_LIMIT = 8;
 export const VALID_STATUSES = ['watchlist', 'watching', 'completed'] as const;
 export const BACKUP_REMINDER_THRESHOLD = 10;
 export const BACKUP_REMINDER_DAYS = 7;
+export const LS_THEME = 'series_tracker_theme';

@@ -1,6 +1,7 @@
 import { createIcons, icons } from 'lucide';
 import DOMPurify from 'dompurify';
 import { LS_API_KEY, LS_GD_KEY } from '../config/constants';
+import type { TmdbSearchResult } from '../types';
 
 // ─── FOCUS TRAP ──────────────────────────────
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -132,4 +133,69 @@ export function closeEditModal(): void {
 export function openEditModalFocus(): void {
   const modal = document.getElementById('modal-edit');
   if (modal) trapFocus(modal);
+}
+
+export function openHelpModal(): void {
+  const modal = document.getElementById('modal-help');
+  modal?.classList.remove('hidden');
+  if (modal) trapFocus(modal);
+}
+
+export function closeHelpModal(): void {
+  document.getElementById('modal-help')?.classList.add('hidden');
+  releaseFocus();
+}
+
+export function openSimilarSeriesModal(
+  suggestions: TmdbSearchResult[],
+  alreadyInStore: Set<number>,
+  onAdd: (result: TmdbSearchResult) => void
+): void {
+  const modal = document.getElementById('modal-similar');
+  const container = document.getElementById('similar-series-list');
+  if (!modal || !container) return;
+
+  const IMG_BASE = 'https://image.tmdb.org/t/p/w300';
+  container.innerHTML = suggestions
+    .slice(0, 6)
+    .map((r) => {
+      const already = alreadyInStore.has(r.id);
+      const img = r.poster_path
+        ? IMG_BASE + r.poster_path
+        : 'https://placehold.co/60x90/27272a/6366f1?text=?';
+      return `<div class="flex items-center gap-3 p-2 rounded-lg ${already ? 'opacity-50' : ''}">
+        <img src="${DOMPurify.sanitize(img)}" alt="" class="w-10 h-14 object-cover rounded shrink-0" loading="lazy" />
+        <div class="flex-1 min-w-0">
+          <p class="font-medium text-sm truncate">${DOMPurify.sanitize(r.name)}</p>
+          <p class="text-xs text-zinc-400">${r.first_air_date ? DOMPurify.sanitize(r.first_air_date.slice(0, 4)) : '–'}</p>
+        </div>
+        ${
+          already
+            ? `<span class="text-xs text-zinc-500 shrink-0">Déjà ajoutée</span>`
+            : `<button data-similar-id="${r.id}" class="text-xs px-2 py-1 rounded-lg bg-brand hover:bg-brand-hover text-white shrink-0 transition-colors">+ Ajouter</button>`
+        }
+      </div>`;
+    })
+    .join('');
+
+  container.querySelectorAll<HTMLElement>('[data-similar-id]').forEach((btn) => {
+    const id = Number(btn.dataset['similarId']);
+    const result = suggestions.find((r) => r.id === id);
+    if (result) {
+      btn.addEventListener('click', () => {
+        onAdd(result);
+        btn.textContent = 'Ajoutée ✓';
+        btn.setAttribute('disabled', 'true');
+        btn.classList.replace('bg-brand', 'bg-zinc-600');
+      });
+    }
+  });
+
+  modal.classList.remove('hidden');
+  if (modal) trapFocus(modal);
+}
+
+export function closeSimilarSeriesModal(): void {
+  document.getElementById('modal-similar')?.classList.add('hidden');
+  releaseFocus();
 }

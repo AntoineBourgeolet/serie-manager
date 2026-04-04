@@ -118,6 +118,59 @@ describe('SeriesStore', () => {
     });
   });
 
+  describe('hasSimilarName', () => {
+    it('returns true for exact match', () => {
+      store.add(makeSeries({ name: 'Breaking Bad' }));
+      expect(store.hasSimilarName('Breaking Bad')).toBe(true);
+    });
+
+    it('is case-insensitive', () => {
+      store.add(makeSeries({ name: 'Breaking Bad' }));
+      expect(store.hasSimilarName('breaking bad')).toBe(true);
+      expect(store.hasSimilarName('BREAKING BAD')).toBe(true);
+    });
+
+    it('ignores leading/trailing whitespace', () => {
+      store.add(makeSeries({ name: 'Breaking Bad' }));
+      expect(store.hasSimilarName('  Breaking Bad  ')).toBe(true);
+    });
+
+    it('returns false when no match', () => {
+      store.add(makeSeries({ name: 'Breaking Bad' }));
+      expect(store.hasSimilarName('Ozark')).toBe(false);
+    });
+  });
+
+  describe('hadLoadError', () => {
+    it('returns false when data loads normally', () => {
+      store.load();
+      expect(store.hadLoadError()).toBe(false);
+    });
+
+    it('returns true when localStorage data is corrupt', () => {
+      localStorage.setItem('series_tracker_data', 'not-json{{{');
+      store.load();
+      expect(store.hadLoadError()).toBe(true);
+    });
+  });
+
+  describe('getFiltered (favourites)', () => {
+    beforeEach(() => {
+      store.add(makeSeries({ id: '1', name: 'Breaking Bad', status: 'watching', isFavourite: true }));
+      store.add(makeSeries({ id: '2', name: 'Better Call Saul', status: 'completed' }));
+      store.add(makeSeries({ id: '3', name: 'Ozark', status: 'watchlist', isFavourite: true }));
+    });
+
+    it('returns only favourites with filter "favourites"', () => {
+      expect(store.getFiltered('favourites', '')).toHaveLength(2);
+    });
+
+    it('combines favourites filter with search', () => {
+      expect(store.getFiltered('favourites', 'breaking')).toHaveLength(1);
+      expect(store.getFiltered('favourites', 'xyz')).toHaveLength(0);
+    });
+  });
+
   describe('getFiltered', () => {
     beforeEach(() => {
       store.add(makeSeries({ id: '1', name: 'Breaking Bad', status: 'watching' }));
