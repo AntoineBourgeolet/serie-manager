@@ -68,8 +68,8 @@ export class SeriesStore {
           return rb - ra;
         }
         case 'rating-asc': {
-          const ra = a.rating ?? 11;
-          const rb = b.rating ?? 11;
+          const ra = a.rating ?? Infinity;
+          const rb = b.rating ?? Infinity;
           return ra - rb;
         }
         case 'recent':

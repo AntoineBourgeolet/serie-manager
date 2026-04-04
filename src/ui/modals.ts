@@ -73,11 +73,7 @@ export function showToast(
 
   document.getElementById('toast-area')?.appendChild(t);
   createIcons({ icons });
-  const timer = setTimeout(() => t.remove(), 3500);
-  // If action clicked, clear timer
-  if (action) {
-    t.querySelector('button')?.addEventListener('click', () => clearTimeout(timer));
-  }
+  setTimeout(() => t.remove(), 3500);
 }
 
 // ─── MODALS ──────────────────────────────────
