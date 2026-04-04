@@ -15,6 +15,8 @@ import {
   TMDB_BASE,
   TMDB_SEARCH_DEBOUNCE_MS,
   TMDB_SUGGESTIONS_LIMIT,
+  WATCHLIST_SUGGESTIONS_LIMIT,
+  MAX_RECOMMENDATION_SEED_SERIES,
   IMG_BASE,
   BACKUP_REMINDER_THRESHOLD,
   BACKUP_REMINDER_DAYS,
@@ -168,7 +170,7 @@ async function renderWatchlistSuggestions(): Promise<void> {
     try {
       const popular = await tmdbClient.getPopularSeries();
       const alreadyIn = new Set(store.getAll().map((s) => s.tmdbId).filter((id): id is number => id !== null));
-      const filtered = popular.filter((r) => !alreadyIn.has(r.id)).slice(0, 6);
+      const filtered = popular.filter((r) => !alreadyIn.has(r.id)).slice(0, WATCHLIST_SUGGESTIONS_LIMIT);
       const listEl = document.getElementById('suggestions-list');
       if (!listEl) return;
       if (!filtered.length) { listEl.innerHTML = '<p class="text-xs text-zinc-500 col-span-full">Aucune suggestion disponible.</p>'; return; }
@@ -207,7 +209,7 @@ async function suggestMoreSeries(): Promise<void> {
   const topRated = allSeries
     .filter((s) => (s.status === 'completed' || s.status === 'watching') && s.tmdbId)
     .sort((a, b) => (b.rating ?? b.tmdbRating ?? 0) - (a.rating ?? a.tmdbRating ?? 0))
-    .slice(0, 3)
+    .slice(0, MAX_RECOMMENDATION_SEED_SERIES)
     .map((s) => s.tmdbId as number);
   const alreadyIn = new Set(allSeries.map((s) => s.tmdbId).filter((id): id is number => id !== null));
   try {

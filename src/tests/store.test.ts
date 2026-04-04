@@ -208,6 +208,9 @@ describe('SeriesStore', () => {
       expect(stats.countWatching).toBe(0);
       expect(stats.countCompleted).toBe(0);
       expect(stats.countWatchlist).toBe(0);
+      expect(stats.countAbandoned).toBe(0);
+      expect(stats.countOnHold).toBe(0);
+      expect(stats.countWaitingPlatform).toBe(0);
       expect(stats.epTotal).toBe(0);
       expect(stats.minTotal).toBe(0);
     });
@@ -230,6 +233,41 @@ describe('SeriesStore', () => {
       expect(stats.minCompleted).toBe(10 * 30);
       expect(stats.minWatchlist).toBe(20 * 45);
       expect(stats.minTotal).toBe(62 * 47 + 10 * 30 + 20 * 45);
+    });
+
+    it('counts new statuses correctly', () => {
+      store.add(makeSeries({ id: '1', status: 'abandoned', episodesTotal: 10, episodeRuntime: 20 }));
+      store.add(makeSeries({ id: '2', status: 'on-hold', episodesTotal: 5, episodeRuntime: 30 }));
+      store.add(makeSeries({ id: '3', status: 'waiting-platform', episodesTotal: 20, episodeRuntime: 40 }));
+
+      const stats = store.computeStats();
+      expect(stats.countAbandoned).toBe(1);
+      expect(stats.countOnHold).toBe(1);
+      expect(stats.countWaitingPlatform).toBe(1);
+      expect(stats.epAbandoned).toBe(10);
+      expect(stats.epOnHold).toBe(5);
+      expect(stats.epWaitingPlatform).toBe(20);
+      expect(stats.minAbandoned).toBe(10 * 20);
+      expect(stats.minOnHold).toBe(5 * 30);
+      expect(stats.minWaitingPlatform).toBe(20 * 40);
+    });
+  });
+
+  describe('getFiltered with new statuses', () => {
+    beforeEach(() => {
+      store.add(makeSeries({ id: '1', name: 'Abandoned Show', status: 'abandoned' }));
+      store.add(makeSeries({ id: '2', name: 'On Hold Show', status: 'on-hold' }));
+      store.add(makeSeries({ id: '3', name: 'Waiting Platform Show', status: 'waiting-platform' }));
+    });
+
+    it('filters by abandoned status', () => {
+      expect(store.getFiltered('abandoned', '')).toHaveLength(1);
+      expect(store.getFiltered('on-hold', '')).toHaveLength(1);
+      expect(store.getFiltered('waiting-platform', '')).toHaveLength(1);
+    });
+
+    it('includes new statuses in "all" filter', () => {
+      expect(store.getFiltered('all', '')).toHaveLength(3);
     });
   });
 

@@ -52,6 +52,12 @@ describe('nextStatus', () => {
     expect(nextStatus('watching')).toBe('completed');
     expect(nextStatus('completed')).toBe('watchlist');
   });
+
+  it('maps new statuses back to watchlist or watching', () => {
+    expect(nextStatus('abandoned')).toBe('watchlist');
+    expect(nextStatus('on-hold')).toBe('watching');
+    expect(nextStatus('waiting-platform')).toBe('watchlist');
+  });
 });
 
 describe('formatTime', () => {

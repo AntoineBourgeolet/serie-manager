@@ -2,6 +2,7 @@ import { createIcons, icons } from 'lucide';
 import type { SeriesStore } from '../store/seriesStore';
 import type { WatchHistoryEntry } from '../types';
 import { formatTime } from '../utils/formatting';
+import { MIN_GENRE_SERIES_COUNT, MAX_DISPLAYED_GENRES } from '../config/constants';
 
 export function statCard(
   icon: string,
@@ -120,9 +121,9 @@ function genreDonutChart(store: SeriesStore): string {
   });
 
   const entries = Object.entries(genreMap)
-    .filter(([, v]) => v.series >= 2)
+    .filter(([, v]) => v.series >= MIN_GENRE_SERIES_COUNT)
     .sort((a, b) => b[1].series - a[1].series)
-    .slice(0, 8);
+    .slice(0, MAX_DISPLAYED_GENRES);
 
   if (!entries.length) return '';
 
