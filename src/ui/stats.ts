@@ -51,7 +51,7 @@ function watchHistorySection(allHistory: (WatchHistoryEntry & { seriesName: stri
   if (!allHistory.length) return '';
   const recent = allHistory
     .slice()
-    .sort((a, b) => (b.watchedAt > a.watchedAt ? 1 : -1))
+    .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt))
     .slice(0, 10);
   const rows = recent
     .map(
