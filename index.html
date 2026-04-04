@@ -663,6 +663,7 @@
         .filter(s => s.season_number > 0)
         .map(s => ({ season_number: s.season_number, episode_count: s.episode_count, name: s.name }));
     }
+    function tryParseJSON(str, fallback) {
       try { return JSON.parse(str); } catch { return fallback; }
     }
 
