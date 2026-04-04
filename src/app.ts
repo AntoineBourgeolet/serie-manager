@@ -338,7 +338,7 @@ function saveEdit(): void {
     const totalInSeason = seasonData ? seasonData.episode_count : eps.length;
     const allNewSeasonWatched = eps.length >= totalInSeason && newEps.length > 0;
 
-    if (allNewSeasonWatched && newEps.length >= totalInSeason - oldEps.length) {
+    if (allNewSeasonWatched) {
       // All (or remaining) episodes of this season were just watched — one season entry
       allNewlyWatchedSeasons.push(sn);
       // Remove any individual episode entries for this season from new history
@@ -631,7 +631,7 @@ function quickChangeStatus(id: string): void {
           episode: 0,
           watchedAt: today,
           type: 'series' as const,
-          episodeCount: totalEps || s.episodesTotal || undefined,
+          episodeCount: totalEps !== 0 ? totalEps : (s.episodesTotal ?? undefined),
         },
       ];
     }
