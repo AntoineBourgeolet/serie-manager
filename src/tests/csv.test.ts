@@ -105,7 +105,7 @@ describe('importCSV round-trip', () => {
       isFavourite: true,
       tags: ['sci-fi', 'rewatch'],
       genres: ['Drama'],
-      watchHistory: [{ season: 1, episode: 2, watchedAt: '2024-06-01' }],
+      watchHistory: [{ season: 1, episode: 2, watchedAt: '2024-06-01', type: 'episode' }],
     })];
     const csv = generateCSV(original);
     const file = new File([csv], 'test.csv', { type: 'text/csv' });
@@ -118,7 +118,31 @@ describe('importCSV round-trip', () => {
     expect(result[0].isFavourite).toBe(true);
     expect(result[0].tags).toEqual(['sci-fi', 'rewatch']);
     expect(result[0].genres).toEqual(['Drama']);
-    expect(result[0].watchHistory).toEqual([{ season: 1, episode: 2, watchedAt: '2024-06-01' }]);
+    expect(result[0].watchHistory).toEqual([{ season: 1, episode: 2, watchedAt: '2024-06-01', type: 'episode' }]);
+  });
+
+  it('round-trips TMDB enrichment fields', async () => {
+    const original = [makeSeries({
+      network: 'Netflix',
+      originCountry: 'US',
+      originalLanguage: 'en',
+      tmdbRating: 8.5,
+      productionStatus: 'Ended',
+      createdBy: 'Vince Gilligan',
+    })];
+    const csv = generateCSV(original);
+    const file = new File([csv], 'test.csv', { type: 'text/csv' });
+
+    const result = await new Promise<Series[]>((resolve, reject) => {
+      importCSV(file, resolve, (msg) => reject(new Error(msg)));
+    });
+
+    expect(result[0].network).toBe('Netflix');
+    expect(result[0].originCountry).toBe('US');
+    expect(result[0].originalLanguage).toBe('en');
+    expect(result[0].tmdbRating).toBe(8.5);
+    expect(result[0].productionStatus).toBe('Ended');
+    expect(result[0].createdBy).toBe('Vince Gilligan');
   });
 
   it('falls back to watchlist for invalid status', async () => {

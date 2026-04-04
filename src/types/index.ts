@@ -12,6 +12,9 @@ export interface WatchHistoryEntry {
   season: number;
   episode: number;
   watchedAt: string; // ISO date (YYYY-MM-DD)
+  type?: 'episode' | 'season' | 'series';
+  seasonLabel?: string;
+  episodeCount?: number;
 }
 
 export interface Series {
@@ -36,6 +39,13 @@ export interface Series {
   tags?: string[];
   genres?: string[];
   watchHistory?: WatchHistoryEntry[];
+  // TMDB enrichment fields
+  network?: string;
+  originCountry?: string;
+  originalLanguage?: string;
+  tmdbRating?: number;
+  productionStatus?: string;
+  createdBy?: string;
 }
 
 export interface TmdbSearchResult {
@@ -56,6 +66,11 @@ export interface TmdbNetwork {
   name: string;
 }
 
+export interface TmdbCreator {
+  id: number;
+  name: string;
+}
+
 export interface TmdbSeriesDetails {
   id: number;
   name: string;
@@ -66,7 +81,12 @@ export interface TmdbSeriesDetails {
   genres?: TmdbGenre[];
   networks?: TmdbNetwork[];
   original_language?: string;
+  origin_country?: string[];
   vote_average?: number;
+  status?: string;
+  created_by?: TmdbCreator[];
+  first_air_date?: string;
+  last_air_date?: string;
 }
 
 export interface TmdbSeason {
