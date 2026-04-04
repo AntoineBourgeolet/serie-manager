@@ -657,7 +657,12 @@
     }
 
     // ─── EPISODE TRACKING HELPERS ────────────────
-    function tryParseJSON(str, fallback) {
+    function extractSeasonsData(details) {
+      if (!details || !details.seasons) return [];
+      return details.seasons
+        .filter(s => s.season_number > 0)
+        .map(s => ({ season_number: s.season_number, episode_count: s.episode_count, name: s.name }));
+    }
       try { return JSON.parse(str); } catch { return fallback; }
     }
 
@@ -786,19 +791,18 @@
 
         container.querySelectorAll(`[data-ep-season="${sn}"]`).forEach(ep => {
           ep.addEventListener('change', () => {
-            const all  = Array.from(epChecks());
-            const done = all.filter(e => e.checked).length;
+            const all          = Array.from(epChecks());
+            const checkedCount = all.filter(e => e.checked).length;
             if (seasonCheck) {
-              seasonCheck.checked       = done === all.length;
-              seasonCheck.indeterminate = done > 0 && done < all.length;
+              seasonCheck.checked       = checkedCount === all.length;
+              seasonCheck.indeterminate = checkedCount > 0 && checkedCount < all.length;
             }
           });
         });
       });
 
       document.getElementById('refresh-episodes-btn').addEventListener('click', () => {
-        const idx = seriesList.findIndex(x => x.id === editingId);
-        if (idx !== -1) { seriesList[idx].seasonsData = []; renderEditEpisodesSection(seriesList[idx]); }
+        if (editingId) loadEpisodesForEditing(editingId);
       });
     }
 
@@ -815,10 +819,8 @@
 
       try {
         const details = await fetchSeriesDetails(s.tmdbId);
-        if (details && details.seasons) {
-          seriesList[idx].seasonsData  = details.seasons
-            .filter(season => season.season_number > 0)
-            .map(season => ({ season_number: season.season_number, episode_count: season.episode_count, name: season.name }));
+        if (details) {
+          seriesList[idx].seasonsData  = extractSeasonsData(details);
           seriesList[idx].totalSeasons = details.number_of_seasons || seriesList[idx].totalSeasons;
           saveToLocal();
           renderEditEpisodesSection(seriesList[idx]);
@@ -942,12 +944,8 @@
     }
 
     async function addSeriesFromTmdb(tmdbResult) {
-      const details = await fetchSeriesDetails(tmdbResult.id).catch(() => null);
-      const seasonsData = details && details.seasons
-        ? details.seasons
-            .filter(s => s.season_number > 0)
-            .map(s => ({ season_number: s.season_number, episode_count: s.episode_count, name: s.name }))
-        : [];
+      const details     = await fetchSeriesDetails(tmdbResult.id).catch(() => null);
+      const seasonsData = extractSeasonsData(details);
       const series  = {
         id:             generateId(),
         tmdbId:         tmdbResult.id,
