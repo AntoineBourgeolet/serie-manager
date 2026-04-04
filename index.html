@@ -26,6 +26,7 @@
     .card-transition:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(99,102,241,0.18); }
     .modal-backdrop { backdrop-filter: blur(4px); }
     .suggestion-item:hover { background-color: #3f3f46; }
+    input[type="checkbox"] { accent-color: #6366f1; }
   </style>
 </head>
 <body class="dark min-h-screen text-zinc-100 flex">
@@ -198,14 +199,16 @@
 
   <!-- EDIT MODAL -->
   <div id="modal-edit" class="hidden fixed inset-0 z-40 flex items-center justify-center modal-backdrop bg-black/60">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-semibold truncate pr-2" id="edit-modal-title">Modifier</h3>
-        <button id="edit-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-lg mx-4 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="p-6 pb-4 shrink-0">
+        <div class="flex items-center justify-between">
+          <h3 class="text-lg font-semibold truncate pr-2" id="edit-modal-title">Modifier</h3>
+          <button id="edit-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
       </div>
-      <div class="space-y-3">
+      <div class="px-6 overflow-y-auto flex-1 space-y-3 pb-2">
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Statut</label>
           <select id="edit-status" class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
@@ -220,17 +223,13 @@
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Saison actuelle</label>
-          <input id="edit-season" type="number" min="1"
-            class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
-        </div>
-        <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage</label>
           <input id="edit-viewing-date" type="date"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
+        <div id="edit-episodes-section"></div>
       </div>
-      <div class="flex gap-3 pt-2">
+      <div class="px-6 py-4 shrink-0 flex gap-3 border-t border-surface-border">
         <button id="edit-save" class="flex-1 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
           Enregistrer
         </button>
@@ -310,7 +309,17 @@
     }
 
     function loadFromLocal() {
-      try { const raw = localStorage.getItem(LS_KEY); if (raw) seriesList = JSON.parse(raw); }
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          seriesList = JSON.parse(raw);
+          seriesList = seriesList.map(s => ({
+            seasonsData:    [],
+            watchedEpisodes:{},
+            ...s,
+          }));
+        }
+      }
       catch { seriesList = []; }
     }
 
@@ -338,10 +347,14 @@
 
     // ─── CSV IMPORT / EXPORT ─────────────────────
     const CSV_FIELDS = ['id','tmdbId','name','status','rating','season','totalSeasons',
-                        'year','poster','overview','episodesTotal','episodeRuntime','viewingDate'];
+                        'year','poster','overview','episodesTotal','episodeRuntime','viewingDate',
+                        'seasonsData','watchedEpisodes'];
 
     function generateCSV() {
-      return Papa.unparse({ fields: CSV_FIELDS, data: seriesList.map(s => CSV_FIELDS.map(f => s[f] ?? '')) });
+      return Papa.unparse({ fields: CSV_FIELDS, data: seriesList.map(s => CSV_FIELDS.map(f => {
+        if (f === 'seasonsData' || f === 'watchedEpisodes') return s[f] ? JSON.stringify(s[f]) : '';
+        return s[f] ?? '';
+      })) });
     }
 
     function exportToCSV() {
@@ -373,6 +386,8 @@
             episodesTotal:  row.episodesTotal  ? Number(row.episodesTotal)  : null,
             episodeRuntime: row.episodeRuntime ? Number(row.episodeRuntime) : null,
             viewingDate:    row.viewingDate    || '',
+            seasonsData:    row.seasonsData    ? tryParseJSON(row.seasonsData, [])  : [],
+            watchedEpisodes:row.watchedEpisodes? tryParseJSON(row.watchedEpisodes, {}) : {},
           }));
           saveToLocal(); updateUI();
           showToast(`${seriesList.length} série(s) importée(s).`, 'success');
@@ -578,7 +593,10 @@
       const img         = s.poster ? IMG_BASE + s.poster : placeholder;
       const stars       = s.rating != null ? `★ ${s.rating}/10` : '';
       const seasonInfo  = s.totalSeasons ? `S${s.season||1}/${s.totalSeasons}` : `S${s.season||1}`;
-      const epInfo      = s.episodesTotal ? `${s.episodesTotal} ép.` : '';
+      const totalWatched = countWatchedEpisodes(s);
+      const epInfo      = s.episodesTotal
+        ? (totalWatched > 0 ? `${totalWatched}/${s.episodesTotal} ép.` : `${s.episodesTotal} ép.`)
+        : (totalWatched > 0 ? `${totalWatched} ép. vus` : '');
       const timeInfo    = (s.episodesTotal && s.episodeRuntime) ? formatTime(s.episodesTotal * s.episodeRuntime) : '';
       return `
         <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex">
@@ -614,10 +632,12 @@
     function quickChangeStatus(id) {
       const idx = seriesList.findIndex(s => s.id === id);
       if (idx === -1) return;
-      const s = seriesList[idx];
-      seriesList[idx].status = nextStatus(s.status);
+      const s         = seriesList[idx];
+      const newStatus = nextStatus(s.status);
+      seriesList[idx].status = newStatus;
+      if (newStatus === 'completed') markAllEpisodesWatched(seriesList[idx]);
       saveToLocal(); updateUI();
-      showToast(`"${s.name}" → ${statusLabel(seriesList[idx].status)}`, 'success');
+      showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
     }
 
     function renderSidebarCounts() {
@@ -636,6 +656,180 @@
       });
     }
 
+    // ─── EPISODE TRACKING HELPERS ────────────────
+    function tryParseJSON(str, fallback) {
+      try { return JSON.parse(str); } catch { return fallback; }
+    }
+
+    function countWatchedEpisodes(s) {
+      const watched = s.watchedEpisodes || {};
+      return Object.values(watched).reduce((sum, eps) => sum + (Array.isArray(eps) ? eps.length : 0), 0);
+    }
+
+    function markAllEpisodesWatched(s) {
+      const seasonsData = s.seasonsData || [];
+      if (!seasonsData.length) return;
+      const watched = {};
+      seasonsData.forEach(season => {
+        watched[String(season.season_number)] = Array.from({ length: season.episode_count }, (_, i) => i + 1);
+      });
+      s.watchedEpisodes = watched;
+    }
+
+    function updateCurrentSeasonFromWatched(s) {
+      const seasonsData = s.seasonsData || [];
+      if (!seasonsData.length) return;
+      const watched = s.watchedEpisodes || {};
+      let currentSeason = seasonsData[0] ? seasonsData[0].season_number : 1;
+      for (const season of seasonsData) {
+        const watchedCount = (watched[String(season.season_number)] || []).length;
+        if (watchedCount > 0) currentSeason = season.season_number;
+        if (watchedCount < season.episode_count) break;
+      }
+      s.season = currentSeason;
+    }
+
+    function renderEditEpisodesSection(s) {
+      const container = document.getElementById('edit-episodes-section');
+      if (!container) return;
+      if (!s.tmdbId) { container.innerHTML = ''; return; }
+
+      const seasonsData = s.seasonsData || [];
+      const watched     = s.watchedEpisodes || {};
+
+      if (!seasonsData.length) {
+        container.innerHTML = `
+          <div class="border-t border-surface-border pt-3">
+            <p class="text-xs text-zinc-400 uppercase tracking-wider mb-2">Épisodes</p>
+            <button id="load-episodes-btn" class="w-full px-3 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm transition-colors flex items-center justify-center gap-2">
+              <i data-lucide="download" class="w-4 h-4"></i>
+              Charger les épisodes depuis TMDB
+            </button>
+            <div id="episodes-loading" class="hidden text-center py-3">
+              <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline-block text-brand"></i>
+            </div>
+          </div>`;
+        lucide.createIcons({ icons: lucide.icons });
+        document.getElementById('load-episodes-btn').addEventListener('click', () => loadEpisodesForEditing(s.id));
+        return;
+      }
+
+      const totalWatched = countWatchedEpisodes(s);
+      const totalEps     = seasonsData.reduce((sum, season) => sum + season.episode_count, 0);
+
+      container.innerHTML = `
+        <div class="border-t border-surface-border pt-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs text-zinc-400 uppercase tracking-wider">Épisodes <span class="text-zinc-300">${totalWatched}/${totalEps}</span></p>
+            <button id="refresh-episodes-btn" class="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors">
+              <i data-lucide="refresh-cw" class="w-3 h-3"></i> Actualiser
+            </button>
+          </div>
+          <div id="seasons-list" class="space-y-1.5">
+            ${seasonsData.map(season => {
+              const seasonWatched = watched[String(season.season_number)] || [];
+              const allWatched    = seasonWatched.length >= season.episode_count;
+              const anyWatched    = seasonWatched.length > 0;
+              return `
+              <div class="bg-surface rounded-lg border border-surface-border overflow-hidden">
+                <div class="flex items-center gap-2 px-2.5 py-2">
+                  <input type="checkbox" data-season-check="${season.season_number}"
+                    class="w-4 h-4 shrink-0 cursor-pointer"
+                    ${allWatched ? 'checked' : ''}
+                    ${anyWatched && !allWatched ? 'data-indeterminate="true"' : ''} />
+                  <button class="flex-1 text-left text-sm font-medium text-zinc-200 hover:text-white" data-toggle-season="${season.season_number}">
+                    ${escapeHtml(season.name)}
+                    <span class="text-xs text-zinc-400 ml-1">(${seasonWatched.length}/${season.episode_count})</span>
+                  </button>
+                  <i data-lucide="chevron-right" class="w-4 h-4 text-zinc-500 transition-transform shrink-0" id="chevron-s${season.season_number}"></i>
+                </div>
+                <div id="episodes-s${season.season_number}" class="hidden flex flex-wrap gap-1 px-2.5 pb-2.5">
+                  ${Array.from({ length: season.episode_count }, (_, i) => i + 1).map(ep => `
+                    <label class="flex items-center gap-1 text-xs cursor-pointer hover:text-white px-1.5 py-0.5 rounded hover:bg-zinc-700">
+                      <input type="checkbox" data-ep-season="${season.season_number}" data-ep-num="${ep}"
+                        class="w-3.5 h-3.5 cursor-pointer"
+                        ${seasonWatched.includes(ep) ? 'checked' : ''} />
+                      <span class="text-zinc-400">${ep}</span>
+                    </label>`).join('')}
+                </div>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`;
+
+      lucide.createIcons({ icons: lucide.icons });
+
+      // Wire up season toggles, season checkboxes, and episode checkboxes
+      seasonsData.forEach(season => {
+        const sn          = String(season.season_number);
+        const toggleBtn   = container.querySelector(`[data-toggle-season="${season.season_number}"]`);
+        const chevron     = container.querySelector(`#chevron-s${season.season_number}`);
+        const epList      = container.querySelector(`#episodes-s${season.season_number}`);
+        const seasonCheck = container.querySelector(`[data-season-check="${season.season_number}"]`);
+        const epChecks    = () => container.querySelectorAll(`[data-ep-season="${sn}"]`);
+
+        if (seasonCheck && seasonCheck.dataset.indeterminate) seasonCheck.indeterminate = true;
+
+        if (toggleBtn && epList) {
+          toggleBtn.addEventListener('click', () => {
+            const hidden = epList.classList.toggle('hidden');
+            if (chevron) chevron.style.transform = hidden ? '' : 'rotate(90deg)';
+          });
+        }
+
+        if (seasonCheck) {
+          seasonCheck.addEventListener('change', () => {
+            epChecks().forEach(ep => { ep.checked = seasonCheck.checked; });
+            seasonCheck.indeterminate = false;
+          });
+        }
+
+        container.querySelectorAll(`[data-ep-season="${sn}"]`).forEach(ep => {
+          ep.addEventListener('change', () => {
+            const all  = Array.from(epChecks());
+            const done = all.filter(e => e.checked).length;
+            if (seasonCheck) {
+              seasonCheck.checked       = done === all.length;
+              seasonCheck.indeterminate = done > 0 && done < all.length;
+            }
+          });
+        });
+      });
+
+      document.getElementById('refresh-episodes-btn').addEventListener('click', () => {
+        const idx = seriesList.findIndex(x => x.id === editingId);
+        if (idx !== -1) { seriesList[idx].seasonsData = []; renderEditEpisodesSection(seriesList[idx]); }
+      });
+    }
+
+    async function loadEpisodesForEditing(seriesId) {
+      const idx = seriesList.findIndex(x => x.id === seriesId);
+      if (idx === -1) return;
+      const s = seriesList[idx];
+      if (!s.tmdbId) return;
+
+      const loadBtn   = document.getElementById('load-episodes-btn');
+      const loadingEl = document.getElementById('episodes-loading');
+      if (loadBtn)   loadBtn.classList.add('hidden');
+      if (loadingEl) loadingEl.classList.remove('hidden');
+
+      try {
+        const details = await fetchSeriesDetails(s.tmdbId);
+        if (details && details.seasons) {
+          seriesList[idx].seasonsData  = details.seasons
+            .filter(season => season.season_number > 0)
+            .map(season => ({ season_number: season.season_number, episode_count: season.episode_count, name: season.name }));
+          seriesList[idx].totalSeasons = details.number_of_seasons || seriesList[idx].totalSeasons;
+          saveToLocal();
+          renderEditEpisodesSection(seriesList[idx]);
+        }
+      } catch {
+        if (loadBtn)   loadBtn.classList.remove('hidden');
+        if (loadingEl) loadingEl.classList.add('hidden');
+        showToast('Erreur lors du chargement des épisodes.', 'error');
+      }
+    }
+
     // ─── EDIT MODAL ──────────────────────────────
     function openEditModal(id) {
       const s = seriesList.find(x => x.id === id);
@@ -644,8 +838,8 @@
       document.getElementById('edit-modal-title').textContent    = s.name;
       document.getElementById('edit-status').value               = s.status      || 'watchlist';
       document.getElementById('edit-rating').value               = s.rating      ?? '';
-      document.getElementById('edit-season').value               = s.season      ?? 1;
       document.getElementById('edit-viewing-date').value         = s.viewingDate || todayISO();
+      renderEditEpisodesSection(s);
       document.getElementById('modal-edit').classList.remove('hidden');
     }
 
@@ -658,11 +852,31 @@
       if (!editingId) return;
       const idx = seriesList.findIndex(x => x.id === editingId);
       if (idx === -1) return;
-      seriesList[idx].status      = document.getElementById('edit-status').value;
+      const newStatus = document.getElementById('edit-status').value;
+      seriesList[idx].status      = newStatus;
       const r = parseFloat(document.getElementById('edit-rating').value);
       seriesList[idx].rating      = isNaN(r) ? null : Math.min(10, Math.max(0, r));
-      seriesList[idx].season      = parseInt(document.getElementById('edit-season').value) || 1;
       seriesList[idx].viewingDate = document.getElementById('edit-viewing-date').value || '';
+
+      if (newStatus === 'completed') {
+        markAllEpisodesWatched(seriesList[idx]);
+      } else {
+        const container   = document.getElementById('edit-episodes-section');
+        const seasonsData = seriesList[idx].seasonsData || [];
+        if (container && seasonsData.length) {
+          const watchedEpisodes = {};
+          seasonsData.forEach(season => {
+            const sn      = String(season.season_number);
+            const epChecks = container.querySelectorAll(`[data-ep-season="${sn}"]`);
+            watchedEpisodes[sn] = Array.from(epChecks)
+              .filter(e => e.checked)
+              .map(e => parseInt(e.dataset.epNum));
+          });
+          seriesList[idx].watchedEpisodes = watchedEpisodes;
+        }
+      }
+
+      updateCurrentSeasonFromWatched(seriesList[idx]);
       saveToLocal(); updateUI(); closeEditModal();
       showToast('Série mise à jour !', 'success');
     }
@@ -729,6 +943,11 @@
 
     async function addSeriesFromTmdb(tmdbResult) {
       const details = await fetchSeriesDetails(tmdbResult.id).catch(() => null);
+      const seasonsData = details && details.seasons
+        ? details.seasons
+            .filter(s => s.season_number > 0)
+            .map(s => ({ season_number: s.season_number, episode_count: s.episode_count, name: s.name }))
+        : [];
       const series  = {
         id:             generateId(),
         tmdbId:         tmdbResult.id,
@@ -743,6 +962,8 @@
         episodesTotal:  details ? (details.number_of_episodes || null) : null,
         episodeRuntime: details && details.episode_run_time && details.episode_run_time[0] ? details.episode_run_time[0] : null,
         viewingDate:    todayISO(),
+        seasonsData:    seasonsData,
+        watchedEpisodes:{},
       };
       if (seriesList.some(s => s.tmdbId === series.tmdbId)) {
         showToast('Cette série est déjà dans votre liste.', 'info'); return;
