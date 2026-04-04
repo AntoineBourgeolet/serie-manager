@@ -750,19 +750,18 @@
               const pct           = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
               return `
               <div class="bg-surface rounded-xl border border-surface-border overflow-hidden">
-                <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-zinc-800/50 transition-colors select-none" data-toggle-season="${season.season_number}">
+                <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-zinc-800/50 transition-colors select-none" data-toggle-season="${season.season_number}" role="button" tabindex="0" aria-expanded="false">
                   <input type="checkbox" data-season-check="${season.season_number}"
                     class="w-4 h-4 shrink-0 cursor-pointer rounded"
                     ${allWatched ? 'checked' : ''}
-                    ${anyWatched && !allWatched ? 'data-indeterminate="true"' : ''}
-                    onclick="event.stopPropagation()" />
+                    ${anyWatched && !allWatched ? 'data-indeterminate="true"' : ''} />
                   <div class="flex-1 min-w-0">
                     <div class="flex items-center justify-between gap-2">
                       <span class="text-sm font-medium text-zinc-200 truncate">${escapeHtml(season.name)}</span>
                       <span class="text-xs text-zinc-400 shrink-0" id="count-s${season.season_number}">${watchedCount}/${totalCount}</span>
                     </div>
                     <div class="mt-1.5 h-1 bg-zinc-700 rounded-full overflow-hidden">
-                      <div class="h-full bg-brand rounded-full transition-all duration-300" id="progress-s${season.season_number}" style="width:${pct}%"></div>
+                      <div class="h-full bg-brand rounded-full transition-all duration-300" id="progress-s${season.season_number}" role="progressbar" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100" style="width:${pct}%"></div>
                     </div>
                   </div>
                   <i data-lucide="chevron-down" class="w-4 h-4 text-zinc-500 shrink-0 transition-transform duration-200" id="chevron-s${season.season_number}"></i>
@@ -772,7 +771,7 @@
                     ${Array.from({ length: totalCount }, (_, i) => i + 1).map(ep => {
                       const isWatched = seasonWatched.includes(ep);
                       return `<label class="ep-tile inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isWatched ? 'bg-brand text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}">
-                        <input type="checkbox" class="sr-only" data-ep-season="${sn}" data-ep-num="${ep}" ${isWatched ? 'checked' : ''}>
+                        <input type="checkbox" class="sr-only" data-ep-season="${sn}" data-ep-num="${ep}" aria-label="Épisode ${ep}" ${isWatched ? 'checked' : ''}>
                         ${ep}
                       </label>`;
                     }).join('')}
@@ -798,10 +797,22 @@
 
         if (seasonCheck && seasonCheck.dataset.indeterminate) seasonCheck.indeterminate = true;
 
-        if (toggleRow && epList) {
-          toggleRow.addEventListener('click', () => {
-            const hidden = epList.classList.toggle('hidden');
-            if (chevron) chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+        // Prevent the season checkbox click from bubbling up to the toggle row
+        if (seasonCheck) {
+          seasonCheck.addEventListener('click', e => e.stopPropagation());
+        }
+
+        const toggleEpList = () => {
+          if (!epList) return;
+          const hidden = epList.classList.toggle('hidden');
+          if (chevron) chevron.style.transform = hidden ? '' : 'rotate(180deg)';
+          if (toggleRow) toggleRow.setAttribute('aria-expanded', String(!hidden));
+        };
+
+        if (toggleRow) {
+          toggleRow.addEventListener('click', toggleEpList);
+          toggleRow.addEventListener('keydown', e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleEpList(); }
           });
         }
 
