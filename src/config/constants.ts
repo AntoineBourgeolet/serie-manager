@@ -1,0 +1,9 @@
+export const TMDB_BASE = 'https://api.themoviedb.org/3';
+export const IMG_BASE = 'https://image.tmdb.org/t/p/w300';
+export const LS_KEY = 'series_tracker_data';
+export const LS_API_KEY = 'series_tracker_tmdb_key';
+export const LS_GD_KEY = 'series_tracker_gd_client_id';
+export const AVG_DAYS_PER_MONTH = 30.44;
+export const TMDB_SEARCH_DEBOUNCE_MS = 400;
+export const TMDB_SUGGESTIONS_LIMIT = 8;
+export const VALID_STATUSES = ['watchlist', 'watching', 'completed'] as const;
