@@ -15,7 +15,16 @@ export function todayISO(): string {
 }
 
 export function statusLabel(s: SeriesStatus): string {
-  return { watching: 'En cours', completed: 'Terminé', watchlist: 'Watchlist' }[s] || s;
+  return (
+    {
+      watching: 'En cours',
+      completed: 'Terminé',
+      watchlist: 'Watchlist',
+      abandoned: 'Abandonné',
+      'on-hold': 'En pause',
+      'waiting-platform': 'En attente',
+    }[s] || s
+  );
 }
 
 export function statusColor(s: SeriesStatus): string {
@@ -24,16 +33,23 @@ export function statusColor(s: SeriesStatus): string {
       watching: 'bg-blue-500/20   text-blue-400   border border-blue-500/30',
       completed: 'bg-green-500/20  text-green-400  border border-green-500/30',
       watchlist: 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30',
+      abandoned: 'bg-red-500/20    text-red-400    border border-red-500/30',
+      'on-hold': 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+      'waiting-platform': 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
     }[s] || ''
   );
 }
 
 export function nextStatus(s: SeriesStatus): SeriesStatus {
   return (
-    ({ watchlist: 'watching', watching: 'completed', completed: 'watchlist' } as Record<
-      SeriesStatus,
-      SeriesStatus
-    >)[s] || 'watchlist'
+    ({
+      watchlist: 'watching',
+      watching: 'completed',
+      completed: 'watchlist',
+      abandoned: 'watchlist',
+      'on-hold': 'watching',
+      'waiting-platform': 'watchlist',
+    } as Record<SeriesStatus, SeriesStatus>)[s] || 'watchlist'
   );
 }
 

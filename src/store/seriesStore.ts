@@ -1,5 +1,6 @@
 import type { Series, SeriesStatus, AppStats } from '../types';
 import { LS_KEY } from '../config/constants';
+import { dbGetAll, dbPutAll, isIndexedDBAvailable } from './db';
 
 export type SortOption = 'name-asc' | 'name-desc' | 'rating-desc' | 'rating-asc' | 'recent';
 export type FilterOption = SeriesStatus | 'all' | 'favourites';
@@ -22,6 +23,10 @@ export class SeriesStore {
 
   hadLoadError(): boolean {
     return this._hadLoadError;
+  }
+
+  hasLocalStorageData(): boolean {
+    return !!localStorage.getItem(LS_KEY);
   }
 
   load(): void {
@@ -51,6 +56,37 @@ export class SeriesStore {
     } catch {
       // handled by caller via toast
     }
+    if (isIndexedDBAvailable()) {
+      dbPutAll(this.series).catch(() => {});
+    }
+  }
+
+  async initFromDB(): Promise<boolean> {
+    if (!isIndexedDBAvailable()) return false;
+    try {
+      const items = await dbGetAll<Series>();
+      if (items.length > 0) {
+        this.series = items.map((s) => ({
+          ...s,
+          seasonsData: s.seasonsData?.length ? s.seasonsData : [],
+          watchedEpisodes:
+            s.watchedEpisodes && Object.keys(s.watchedEpisodes).length
+              ? s.watchedEpisodes
+              : {},
+        }));
+        this._hadLoadError = false;
+        this.notify();
+        return true;
+      }
+    } catch {
+      // Fall back silently
+    }
+    return false;
+  }
+
+  async migrateToIDB(): Promise<void> {
+    if (!isIndexedDBAvailable()) return;
+    await dbPutAll(this.series);
   }
 
   getAll(): Series[] {
@@ -129,6 +165,9 @@ export class SeriesStore {
     const watching = byStatus('watching');
     const completed = byStatus('completed');
     const watchlist = byStatus('watchlist');
+    const abandoned = byStatus('abandoned');
+    const onHold = byStatus('on-hold');
+    const waitingPlatform = byStatus('waiting-platform');
     const totalEpFor = (list: Series[]) => list.reduce((a, s) => a + (s.episodesTotal || 0), 0);
     const totalMinFor = (list: Series[]) =>
       list.reduce((a, s) => a + (s.episodesTotal || 0) * (s.episodeRuntime || 0), 0);
@@ -137,13 +176,22 @@ export class SeriesStore {
       countWatching: watching.length,
       countCompleted: completed.length,
       countWatchlist: watchlist.length,
+      countAbandoned: abandoned.length,
+      countOnHold: onHold.length,
+      countWaitingPlatform: waitingPlatform.length,
       epWatching: totalEpFor(watching),
       epCompleted: totalEpFor(completed),
       epWatchlist: totalEpFor(watchlist),
+      epAbandoned: totalEpFor(abandoned),
+      epOnHold: totalEpFor(onHold),
+      epWaitingPlatform: totalEpFor(waitingPlatform),
       epTotal: totalEpFor(this.series),
       minWatching: totalMinFor(watching),
       minCompleted: totalMinFor(completed),
       minWatchlist: totalMinFor(watchlist),
+      minAbandoned: totalMinFor(abandoned),
+      minOnHold: totalMinFor(onHold),
+      minWaitingPlatform: totalMinFor(waitingPlatform),
       minTotal: totalMinFor(this.series),
     };
   }

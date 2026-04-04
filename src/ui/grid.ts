@@ -51,8 +51,10 @@ export function seriesCard(
       ? `${totalWatched} ép. vus`
       : '';
   const timeInfo =
-    s.episodesTotal && s.episodeRuntime
-      ? formatTime(s.episodesTotal * s.episodeRuntime)
+    s.episodesTotal
+      ? s.episodeRuntime
+        ? formatTime(s.episodesTotal * s.episodeRuntime)
+        : ''
       : '';
 
   // Accurate progress bar for watching series
@@ -274,6 +276,9 @@ export function renderSidebarCounts(store: SeriesStore): void {
     watching: all.filter((s) => s.status === 'watching').length,
     completed: all.filter((s) => s.status === 'completed').length,
     watchlist: all.filter((s) => s.status === 'watchlist').length,
+    abandoned: all.filter((s) => s.status === 'abandoned').length,
+    'on-hold': all.filter((s) => s.status === 'on-hold').length,
+    'waiting-platform': all.filter((s) => s.status === 'waiting-platform').length,
     favourites: all.filter((s) => !!s.isFavourite).length,
   };
   document.querySelectorAll<HTMLElement>('.nav-btn').forEach((btn) => {
