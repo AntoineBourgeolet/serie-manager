@@ -46,6 +46,25 @@
     @media (min-width: 768px) {
       #mobile-bottom-nav { display: none; }
     }
+
+    /* Light mode overrides */
+    .light-mode body { background-color: #f4f4f5 !important; }
+    .light-mode { background-color: #f4f4f5; }
+    .light-mode .bg-surface { background-color: #f4f4f5 !important; }
+    .light-mode .bg-surface-card { background-color: #ffffff !important; }
+    .light-mode .border-surface-border { border-color: #d4d4d8 !important; }
+    .light-mode .text-zinc-100 { color: #18181b !important; }
+    .light-mode .text-zinc-200 { color: #27272a !important; }
+    .light-mode .text-zinc-300 { color: #3f3f46 !important; }
+    .light-mode .text-zinc-400 { color: #52525b !important; }
+    .light-mode .text-zinc-500 { color: #71717a !important; }
+    .light-mode .text-zinc-600 { color: #a1a1aa !important; }
+    .light-mode .bg-zinc-700 { background-color: #e4e4e7 !important; }
+    .light-mode .bg-zinc-800 { background-color: #f0f0f0 !important; }
+    .light-mode .hover\:bg-zinc-600:hover { background-color: #d4d4d8 !important; }
+    .light-mode .hover\:bg-surface-border:hover { background-color: #e4e4e7 !important; }
+    .light-mode ::-webkit-scrollbar-track { background: #e4e4e7; }
+    .light-mode .suggestion-item:hover { background-color: #e4e4e7; }
   </style>
 </head>
 <body class="dark min-h-screen text-zinc-100 flex">
@@ -121,6 +140,68 @@
     </div>
   </div>
 
+  <!-- KEYBOARD SHORTCUTS HELP MODAL -->
+  <div id="modal-help" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold">Raccourcis clavier</h3>
+        <button id="help-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div class="space-y-2 text-sm">
+        <div class="flex items-center justify-between py-1.5 border-b border-surface-border">
+          <span class="text-zinc-400">Ouvrir aide</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">?</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1.5 border-b border-surface-border">
+          <span class="text-zinc-400">Ajouter une s&eacute;rie</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">N</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1.5 border-b border-surface-border">
+          <span class="text-zinc-400">Vue grille</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">G</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1.5 border-b border-surface-border">
+          <span class="text-zinc-400">Vue liste</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">L</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1.5 border-b border-surface-border">
+          <span class="text-zinc-400">S&eacute;lection multiple</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">B</kbd>
+        </div>
+        <div class="flex items-center justify-between py-1.5">
+          <span class="text-zinc-400">Fermer modal</span>
+          <kbd class="bg-zinc-700 text-zinc-300 px-2 py-0.5 rounded text-xs font-mono">Esc</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SIMILAR SERIES SUGGESTIONS MODAL -->
+  <div id="modal-similar" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
+            <i data-lucide="sparkles" class="w-5 h-5 text-indigo-400"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-semibold">Vous aimerez peut-&ecirc;tre</h3>
+            <p class="text-xs text-zinc-500">S&eacute;ries similaires de TMDB</p>
+          </div>
+        </div>
+        <button id="similar-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      <div id="similar-series-list" class="space-y-1 max-h-80 overflow-y-auto"></div>
+      <button id="similar-modal-skip" class="w-full px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium transition-colors">
+        Ignorer
+      </button>
+    </div>
+  </div>
+
   <!-- SIDEBAR -->
   <aside id="sidebar" class="w-64 shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0 overflow-y-auto overflow-x-hidden">
     <div class="px-4 py-5 border-b border-surface-border flex items-center justify-between gap-2">
@@ -149,6 +230,9 @@
         <li><button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Watchlist">
           <i data-lucide="bookmark" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Watchlist</span>
         </button></li>
+        <li><button data-filter="favourites" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Favoris">
+          <i data-lucide="star" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Favoris</span>
+        </button></li>
       </ul>
     </nav>
     <div class="px-3 py-4 border-t border-surface-border space-y-2 sidebar-actions">
@@ -161,6 +245,9 @@
       </button>
       <button id="btn-gdrive" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Sauvegarder sur Drive">
         <i data-lucide="cloud-upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Sauvegarder sur Drive</span>
+      </button>
+      <button id="btn-theme" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-400" title="Passer en mode clair">
+        <i data-lucide="sun" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Th&egrave;me</span>
       </button>
       <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Clé API TMDB">
         <i data-lucide="key" class="w-3.5 h-3.5 shrink-0"></i> <span class="sidebar-label">Cl&eacute; API TMDB</span>
@@ -186,12 +273,23 @@
       <i data-lucide="bookmark" class="w-5 h-5"></i>
       <span>Watchlist</span>
     </button>
+    <button data-filter="favourites" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
+      <i data-lucide="star" class="w-5 h-5"></i>
+      <span>Favoris</span>
+    </button>
   </nav>
 
   <!-- MAIN CONTENT -->
   <main class="flex-1 flex flex-col min-h-screen overflow-y-auto">
   <!-- aria-live region for screen readers -->
   <span id="results-live" class="sr-only" aria-live="polite" aria-atomic="true"></span>
+
+    <!-- DATA INTEGRITY ERROR BANNER -->
+    <div id="data-error-banner" class="hidden bg-red-900/40 border-b border-red-700/40 px-6 py-2.5 flex items-center gap-3 text-sm text-red-300">
+      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 text-red-400"></i>
+      <span class="flex-1">Vos donn&eacute;es locales semblent corrompues et ont &eacute;t&eacute; r&eacute;initialis&eacute;es. Veuillez importer votre dernier backup CSV.</span>
+      <button id="data-error-dismiss" class="text-xs underline hover:no-underline shrink-0">Ignorer</button>
+    </div>
 
     <!-- BACKUP REMINDER BANNER -->
     <div id="backup-banner" class="hidden bg-yellow-900/40 border-b border-yellow-700/40 px-6 py-2.5 flex items-center gap-3 text-sm text-yellow-300">
@@ -226,6 +324,10 @@
       <!-- Bulk select toggle -->
       <button id="btn-bulk-select" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
         <i data-lucide="check-square" class="w-4 h-4"></i>
+      </button>
+      <!-- Help button -->
+      <button id="btn-help" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
+        <i data-lucide="keyboard" class="w-4 h-4"></i>
       </button>
       <button id="btn-add" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
         <i data-lucide="plus" class="w-4 h-4"></i> <span class="hidden sm:inline">Ajouter une s&eacute;rie</span><span class="sm:hidden">Ajouter</span>
@@ -321,6 +423,20 @@
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage</label>
           <input id="edit-viewing-date" type="date"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+        </div>
+        <div>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Notes personnelles</label>
+          <textarea id="edit-notes" rows="2" placeholder="Vos impressions, remarques&hellip;"
+            class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none placeholder-zinc-600"></textarea>
+        </div>
+        <div>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Tags (s&eacute;par&eacute;s par des virgules)</label>
+          <input id="edit-tags" type="text" placeholder="ex: action, favourite, rewatch&hellip;"
+            class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand placeholder-zinc-600" />
+        </div>
+        <div>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Genres TMDB</label>
+          <div id="edit-genres-display" class="mt-1 flex flex-wrap gap-1.5 min-h-[1.75rem]"></div>
         </div>
         <div id="edit-episodes-section"></div>
       </div>

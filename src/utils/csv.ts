@@ -19,6 +19,11 @@ const CSV_FIELDS: (keyof Series)[] = [
   'viewingDate',
   'seasonsData',
   'watchedEpisodes',
+  'notes',
+  'isFavourite',
+  'tags',
+  'genres',
+  'watchHistory',
 ];
 
 export function generateCSV(seriesList: Series[]): string {
@@ -26,7 +31,15 @@ export function generateCSV(seriesList: Series[]): string {
     fields: CSV_FIELDS as string[],
     data: seriesList.map((s) =>
       CSV_FIELDS.map((f) => {
-        if (f === 'seasonsData' || f === 'watchedEpisodes') return s[f] ? JSON.stringify(s[f]) : '';
+        if (
+          f === 'seasonsData' ||
+          f === 'watchedEpisodes' ||
+          f === 'tags' ||
+          f === 'genres' ||
+          f === 'watchHistory'
+        ) {
+          return s[f] ? JSON.stringify(s[f]) : '';
+        }
         const val = s[f];
         return val != null ? String(val) : '';
       })
@@ -84,6 +97,13 @@ export function importCSV(
           watchedEpisodes: row['watchedEpisodes']
             ? tryParseJSON(row['watchedEpisodes'], {})
             : {},
+          notes: row['notes'] || undefined,
+          isFavourite: row['isFavourite'] === 'true' ? true : undefined,
+          tags: row['tags'] ? tryParseJSON<string[]>(row['tags'], []) : undefined,
+          genres: row['genres'] ? tryParseJSON<string[]>(row['genres'], []) : undefined,
+          watchHistory: row['watchHistory']
+            ? tryParseJSON(row['watchHistory'], [])
+            : undefined,
         };
       });
       onSuccess(series);

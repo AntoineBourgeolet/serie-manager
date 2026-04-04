@@ -8,6 +8,7 @@ import {
   LS_VIEW_PREF,
   LS_LAST_EXPORT,
   LS_SORT_PREF,
+  LS_THEME,
   TMDB_BASE,
   TMDB_SEARCH_DEBOUNCE_MS,
   TMDB_SUGGESTIONS_LIMIT,
@@ -29,6 +30,10 @@ import {
   openAddModalFocus,
   closeEditModal,
   openEditModalFocus,
+  openHelpModal,
+  closeHelpModal,
+  openSimilarSeriesModal,
+  closeSimilarSeriesModal,
 } from './ui/modals';
 import { renderStats } from './ui/stats';
 import { renderGrid, renderSidebarCounts } from './ui/grid';
@@ -39,7 +44,7 @@ import {
   markAllEpisodesWatched,
   updateCurrentSeasonFromWatched,
 } from './ui/episodes';
-import type { TmdbSearchResult } from './types';
+import type { TmdbSearchResult, WatchHistoryEntry } from './types';
 
 // ─── STATE ───────────────────────────────────
 const store = new SeriesStore();
@@ -57,7 +62,7 @@ const selectedIds = new Set<string>();
 // ─── UI UPDATE ───────────────────────────────
 function updateUI(): void {
   renderStats(store);
-  renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus, listView, sortBy, bulkMode);
+  renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus, toggleFavourite, listView, sortBy, bulkMode);
   renderSidebarCounts(store);
   updateBulkToolbar();
   checkBackupReminder();
@@ -125,10 +130,22 @@ function openEditModal(id: string): void {
   const statusEl = document.getElementById('edit-status') as HTMLSelectElement | null;
   const ratingEl = document.getElementById('edit-rating') as HTMLInputElement | null;
   const dateEl = document.getElementById('edit-viewing-date') as HTMLInputElement | null;
+  const notesEl = document.getElementById('edit-notes') as HTMLTextAreaElement | null;
+  const tagsEl = document.getElementById('edit-tags') as HTMLInputElement | null;
+  const genresEl = document.getElementById('edit-genres-display');
   if (titleEl) titleEl.textContent = s.name;
   if (statusEl) statusEl.value = s.status || 'watchlist';
   if (ratingEl) ratingEl.value = s.rating != null ? String(s.rating) : '';
   if (dateEl) dateEl.value = s.viewingDate || todayISO();
+  if (notesEl) notesEl.value = s.notes || '';
+  if (tagsEl) tagsEl.value = s.tags ? s.tags.join(', ') : '';
+  if (genresEl) {
+    genresEl.innerHTML = s.genres && s.genres.length
+      ? s.genres
+          .map((g) => `<span class="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">${sanitize(g)}</span>`)
+          .join('')
+      : '<span class="text-xs text-zinc-600">–</span>';
+  }
   renderEditEpisodesSection(s, (sid) => loadEpisodesForEditing(sid, store, tmdbClient));
   if (s.tmdbId && (!s.seasonsData || !s.seasonsData.length)) {
     loadEpisodesForEditing(id, store, tmdbClient);
@@ -144,35 +161,76 @@ function saveEdit(): void {
   const statusEl = document.getElementById('edit-status') as HTMLSelectElement | null;
   const ratingEl = document.getElementById('edit-rating') as HTMLInputElement | null;
   const dateEl = document.getElementById('edit-viewing-date') as HTMLInputElement | null;
+  const notesEl = document.getElementById('edit-notes') as HTMLTextAreaElement | null;
+  const tagsEl = document.getElementById('edit-tags') as HTMLInputElement | null;
   const newStatus = (statusEl?.value || 'watchlist') as 'watchlist' | 'watching' | 'completed';
   const r = parseFloat(ratingEl?.value || '');
   const rating = isNaN(r) ? null : Math.min(10, Math.max(0, r));
   const viewingDate = dateEl?.value || '';
-  const updated = { ...s, status: newStatus, rating, viewingDate };
+  const notes = notesEl?.value.trim() || undefined;
+  const tagsRaw = tagsEl?.value || '';
+  const tags = tagsRaw
+    ? tagsRaw
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean)
+    : undefined;
 
+  const updated = { ...s, status: newStatus, rating, viewingDate, notes, tags };
+
+  // Collect watched episodes from checkboxes (or mark all if completed)
+  let watchedEpisodes = s.watchedEpisodes;
   if (newStatus === 'completed') {
     markAllEpisodesWatched(updated);
+    watchedEpisodes = updated.watchedEpisodes;
   } else {
     const container = document.getElementById('edit-episodes-section');
     const seasonsData = s.seasonsData || [];
     if (container && seasonsData.length) {
-      const watchedEpisodes: Record<string, number[]> = {};
+      const newWatched: Record<string, number[]> = {};
       seasonsData.forEach((season) => {
         const sn = String(season.season_number);
         const epChecks = container.querySelectorAll<HTMLInputElement>(`[data-ep-season="${sn}"]`);
-        watchedEpisodes[sn] = Array.from(epChecks)
+        newWatched[sn] = Array.from(epChecks)
           .filter((e) => e.checked)
           .map((e) => parseInt(e.dataset['epNum'] || '0'));
       });
-      updated.watchedEpisodes = watchedEpisodes;
+      updated.watchedEpisodes = newWatched;
+      watchedEpisodes = newWatched;
     }
   }
 
+  // Record new watched episodes in watchHistory
+  const today = todayISO();
+  const existingHistory = s.watchHistory || [];
+  const newHistory: WatchHistoryEntry[] = [...existingHistory];
+  Object.entries(watchedEpisodes).forEach(([sn, eps]) => {
+    const oldEps = s.watchedEpisodes[sn] || [];
+    eps.forEach((ep) => {
+      if (!oldEps.includes(ep)) {
+        newHistory.push({ season: Number(sn), episode: ep, watchedAt: today });
+      }
+    });
+  });
+  // Remove entries for unchecked episodes
+  const filteredHistory = newHistory.filter((h) => {
+    const sn = String(h.season);
+    return (watchedEpisodes[sn] || []).includes(h.episode);
+  });
+  updated.watchHistory = filteredHistory;
+
   updateCurrentSeasonFromWatched(updated);
+
+  const wasCompleted = s.status !== 'completed' && newStatus === 'completed';
   store.update(editingId, updated);
   closeEditModal();
   updateUI();
   showToast('Série mise à jour !', 'success');
+
+  // Offer similar series suggestions after completing
+  if (wasCompleted && s.tmdbId && hasTmdbKey()) {
+    suggestSimilarSeries(s.tmdbId);
+  }
 }
 
 function deleteSeries(): void {
@@ -197,6 +255,26 @@ function deleteSeries(): void {
       },
     }
   );
+}
+
+// ─── FAVOURITE TOGGLE ────────────────────────
+function toggleFavourite(id: string): void {
+  const s = store.getAll().find((x) => x.id === id);
+  if (!s) return;
+  store.update(id, { isFavourite: !s.isFavourite });
+  updateUI();
+}
+
+// ─── SIMILAR SERIES ──────────────────────────
+async function suggestSimilarSeries(tmdbId: number): Promise<void> {
+  try {
+    const similar = await tmdbClient.getSimilarSeries(tmdbId);
+    if (!similar.length) return;
+    const alreadyIn = new Set(store.getAll().map((s) => s.tmdbId).filter((id): id is number => id !== null));
+    openSimilarSeriesModal(similar, alreadyIn, addSeriesFromTmdb);
+  } catch {
+    // silently ignore; suggestions are non-critical
+  }
 }
 
 // ─── BULK OPERATIONS ─────────────────────────
@@ -305,6 +383,10 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
     showToast('Cette série est déjà dans votre liste.', 'info');
     return;
   }
+  // Warn on near-duplicate name
+  if (store.hasSimilarName(tmdbResult.name)) {
+    showToast(`⚠️ Une série nommée "${tmdbResult.name}" est déjà dans votre liste.`, 'info');
+  }
   const details = await tmdbClient.getSeriesDetails(tmdbResult.id).catch(() => null);
   const seasonsData = extractSeasonsData(
     details ?? {
@@ -316,6 +398,7 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
       seasons: [],
     }
   );
+  const genres = details?.genres?.map((g) => g.name) ?? [];
   const series = {
     id: generateId(),
     tmdbId: tmdbResult.id,
@@ -335,8 +418,10 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
     viewingDate: todayISO(),
     seasonsData,
     watchedEpisodes: {},
+    genres: genres.length ? genres : undefined,
   };
   store.add(series);
+  closeSimilarSeriesModal();
   closeAddModal();
   updateUI();
   showToast(`"${series.name}" ajoutée à la watchlist !`, 'success');
@@ -351,7 +436,11 @@ function quickChangeStatus(id: string): void {
   store.update(id, updated);
   updateUI();
   showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
+  if (newStatus === 'completed' && s.tmdbId && hasTmdbKey()) {
+    suggestSimilarSeries(s.tmdbId);
+  }
 }
+
 
 // ─── SORT ────────────────────────────────────
 function applySort(value: SortOption): void {
@@ -370,6 +459,20 @@ function applyViewToggle(list: boolean): void {
   if (listBtn) listBtn.classList.toggle('text-brand', list);
   updateUI();
 }
+
+// ─── THEME TOGGLE ────────────────────────────
+function applyTheme(light: boolean): void {
+  document.documentElement.classList.toggle('light-mode', light);
+  localStorage.setItem(LS_THEME, light ? 'light' : 'dark');
+  const themeBtn = document.getElementById('btn-theme');
+  const icon = themeBtn?.querySelector('[data-lucide]');
+  if (icon) {
+    icon.setAttribute('data-lucide', light ? 'moon' : 'sun');
+    createIcons({ icons });
+  }
+  if (themeBtn) themeBtn.title = light ? 'Passer en mode sombre' : 'Passer en mode clair';
+}
+
 
 // ─── EVENT LISTENERS ─────────────────────────
 function setupEventListeners(): void {
@@ -453,6 +556,24 @@ function setupEventListeners(): void {
   document.getElementById('modal-gd-setup')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal-gd-setup')) closeGdSetupModal();
   });
+  document.getElementById('modal-help')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-help')) closeHelpModal();
+  });
+  document.getElementById('help-modal-close')?.addEventListener('click', closeHelpModal);
+  document.getElementById('modal-similar')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-similar')) closeSimilarSeriesModal();
+  });
+  document.getElementById('similar-modal-close')?.addEventListener('click', closeSimilarSeriesModal);
+  document.getElementById('similar-modal-skip')?.addEventListener('click', closeSimilarSeriesModal);
+
+  // Theme toggle
+  document.getElementById('btn-theme')?.addEventListener('click', () => {
+    const isLight = document.documentElement.classList.contains('light-mode');
+    applyTheme(!isLight);
+  });
+
+  // Help modal trigger
+  document.getElementById('btn-help')?.addEventListener('click', openHelpModal);
 
   document.getElementById('search-input')?.addEventListener('input', (e) => {
     searchQuery = (e.target as HTMLInputElement).value;
@@ -484,6 +605,7 @@ function setupEventListeners(): void {
         watching: 'En cours',
         completed: 'Terminées',
         watchlist: 'Watchlist',
+        favourites: 'Favoris',
       };
       const titleEl = document.getElementById('section-title');
       if (titleEl) titleEl.textContent = titles[activeFilter] || 'Séries';
@@ -584,6 +706,11 @@ function setupEventListeners(): void {
     document.getElementById('backup-banner')?.classList.add('hidden');
   });
 
+  // Data integrity banner dismiss
+  document.getElementById('data-error-dismiss')?.addEventListener('click', () => {
+    document.getElementById('data-error-banner')?.classList.add('hidden');
+  });
+
   // Sidebar collapse
   document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
     const sidebar = document.getElementById('sidebar');
@@ -596,14 +723,58 @@ function setupEventListeners(): void {
     }
   });
 
+  // Keyboard shortcuts (global)
   document.addEventListener('keydown', (e) => {
-    if (e.key !== 'Escape') return;
-    closeAddModal();
-    editingId = null;
-    closeEditModal();
-    closeGdSetupModal();
-    if (hasTmdbKey()) closeApiKeyModal();
-    if (bulkMode) exitBulkMode();
+    const tag = (document.activeElement as HTMLElement)?.tagName;
+    const inInput = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+
+    if (e.key === 'Escape') {
+      closeAddModal();
+      editingId = null;
+      closeEditModal();
+      closeGdSetupModal();
+      closeHelpModal();
+      closeSimilarSeriesModal();
+      if (hasTmdbKey()) closeApiKeyModal();
+      if (bulkMode) exitBulkMode();
+      return;
+    }
+
+    // Shortcuts only when not typing in a field and no modal open
+    const anyModalOpen = !!(
+      document.getElementById('modal-add')?.classList.contains('hidden') === false ||
+      document.getElementById('modal-edit')?.classList.contains('hidden') === false ||
+      document.getElementById('modal-apikey')?.classList.contains('hidden') === false ||
+      document.getElementById('modal-help')?.classList.contains('hidden') === false ||
+      document.getElementById('modal-similar')?.classList.contains('hidden') === false
+    );
+    if (inInput || anyModalOpen) return;
+
+    switch (e.key) {
+      case '?':
+        e.preventDefault();
+        openHelpModal();
+        break;
+      case 'n':
+        e.preventDefault();
+        openAddModal();
+        break;
+      case 'g':
+        e.preventDefault();
+        applyViewToggle(false);
+        break;
+      case 'l':
+        e.preventDefault();
+        applyViewToggle(true);
+        break;
+      case 'b':
+        e.preventDefault();
+        bulkMode = !bulkMode;
+        document.getElementById('btn-bulk-select')?.setAttribute('aria-pressed', String(bulkMode));
+        if (!bulkMode) selectedIds.clear();
+        updateUI();
+        break;
+    }
   });
 }
 
@@ -611,6 +782,14 @@ function setupEventListeners(): void {
 store.load();
 createIcons({ icons });
 setupEventListeners();
+
+// Show error banner if localStorage data was corrupt
+if (store.hadLoadError()) {
+  document.getElementById('data-error-banner')?.classList.remove('hidden');
+}
+
+// Apply persisted theme
+applyTheme(localStorage.getItem(LS_THEME) === 'light');
 
 // Apply persisted view pref to buttons
 applyViewToggle(listView);

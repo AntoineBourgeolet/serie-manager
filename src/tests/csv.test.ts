@@ -43,6 +43,24 @@ describe('generateCSV', () => {
     expect(JSON.parse(row['watchedEpisodes'] ?? '')).toEqual(s.watchedEpisodes);
   });
 
+  it('serializes notes, isFavourite, tags, genres, and watchHistory', () => {
+    const s = makeSeries({
+      notes: 'Great show',
+      isFavourite: true,
+      tags: ['drama', 'favourite'],
+      genres: ['Crime', 'Drama'],
+      watchHistory: [{ season: 1, episode: 1, watchedAt: '2024-01-01' }],
+    });
+    const csv = generateCSV([s]);
+    const parsed = Papa.parse<Record<string, string>>(csv, { header: true });
+    const row = parsed.data[0];
+    expect(row['notes']).toBe('Great show');
+    expect(row['isFavourite']).toBe('true');
+    expect(JSON.parse(row['tags'] ?? '')).toEqual(['drama', 'favourite']);
+    expect(JSON.parse(row['genres'] ?? '')).toEqual(['Crime', 'Drama']);
+    expect(JSON.parse(row['watchHistory'] ?? '')).toEqual([{ season: 1, episode: 1, watchedAt: '2024-01-01' }]);
+  });
+
   it('handles empty list', () => {
     const csv = generateCSV([]);
     const parsed = Papa.parse<Record<string, string>>(csv, { header: true, skipEmptyLines: true });
@@ -79,6 +97,28 @@ describe('importCSV round-trip', () => {
     expect(result[0].episodeRuntime).toBe(47);
     expect(result[0].seasonsData).toEqual(original[0].seasonsData);
     expect(result[0].watchedEpisodes).toEqual(original[0].watchedEpisodes);
+  });
+
+  it('round-trips new fields: notes, isFavourite, tags, genres, watchHistory', async () => {
+    const original = [makeSeries({
+      notes: 'Amazing series',
+      isFavourite: true,
+      tags: ['sci-fi', 'rewatch'],
+      genres: ['Drama'],
+      watchHistory: [{ season: 1, episode: 2, watchedAt: '2024-06-01' }],
+    })];
+    const csv = generateCSV(original);
+    const file = new File([csv], 'test.csv', { type: 'text/csv' });
+
+    const result = await new Promise<Series[]>((resolve, reject) => {
+      importCSV(file, resolve, (msg) => reject(new Error(msg)));
+    });
+
+    expect(result[0].notes).toBe('Amazing series');
+    expect(result[0].isFavourite).toBe(true);
+    expect(result[0].tags).toEqual(['sci-fi', 'rewatch']);
+    expect(result[0].genres).toEqual(['Drama']);
+    expect(result[0].watchHistory).toEqual([{ season: 1, episode: 2, watchedAt: '2024-06-01' }]);
   });
 
   it('falls back to watchlist for invalid status', async () => {

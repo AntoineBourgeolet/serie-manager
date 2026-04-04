@@ -1,12 +1,13 @@
 import type { Series, SeriesStatus, AppStats } from '../types';
 import { LS_KEY } from '../config/constants';
-import { tryParseJSON } from '../utils/formatting';
 
 export type SortOption = 'name-asc' | 'name-desc' | 'rating-desc' | 'rating-asc' | 'recent';
+export type FilterOption = SeriesStatus | 'all' | 'favourites';
 
 export class SeriesStore {
   private series: Series[] = [];
   private subscribers: Array<() => void> = [];
+  private _hadLoadError = false;
 
   subscribe(fn: () => void): () => void {
     this.subscribers.push(fn);
@@ -19,11 +20,17 @@ export class SeriesStore {
     this.subscribers.forEach((fn) => fn());
   }
 
+  hadLoadError(): boolean {
+    return this._hadLoadError;
+  }
+
   load(): void {
+    this._hadLoadError = false;
     try {
       const raw = localStorage.getItem(LS_KEY);
       if (raw) {
-        const parsed = tryParseJSON<Series[]>(raw, []);
+        const parsed = JSON.parse(raw) as Series[];
+        if (!Array.isArray(parsed)) throw new Error('Invalid data shape');
         this.series = parsed.map((s) => ({
           ...s,
           seasonsData: s.seasonsData?.length ? s.seasonsData : [],
@@ -34,6 +41,7 @@ export class SeriesStore {
       }
     } catch {
       this.series = [];
+      this._hadLoadError = true;
     }
   }
 
@@ -49,9 +57,16 @@ export class SeriesStore {
     return this.series;
   }
 
-  getFiltered(filter: SeriesStatus | 'all', query: string, sort: SortOption = 'recent'): Series[] {
+  getFiltered(filter: FilterOption, query: string, sort: SortOption = 'recent'): Series[] {
     const filtered = this.series.filter((s) => {
-      const matchFilter = filter === 'all' || s.status === filter;
+      let matchFilter: boolean;
+      if (filter === 'all') {
+        matchFilter = true;
+      } else if (filter === 'favourites') {
+        matchFilter = !!s.isFavourite;
+      } else {
+        matchFilter = s.status === filter;
+      }
       const matchSearch = !query || s.name.toLowerCase().includes(query.toLowerCase());
       return matchFilter && matchSearch;
     });
@@ -101,6 +116,12 @@ export class SeriesStore {
 
   has(tmdbId: number): boolean {
     return this.series.some((s) => s.tmdbId === tmdbId);
+  }
+
+  /** Returns true if a series with a similar name already exists (case-insensitive, trimmed). */
+  hasSimilarName(name: string): boolean {
+    const normalised = name.trim().toLowerCase();
+    return this.series.some((s) => s.name.trim().toLowerCase() === normalised);
   }
 
   computeStats(): AppStats {

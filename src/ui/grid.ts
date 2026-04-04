@@ -22,7 +22,22 @@ function computeNextEpisode(s: Series): string | null {
   return null;
 }
 
-export function seriesCard(s: Series, listView = false): string {
+function computeAccurateProgress(s: Series): number {
+  const totalWatched = countWatchedEpisodes(s);
+  // Prefer total from seasonsData (actual episode counts) over the TMDB aggregate
+  const totalFromSeasons =
+    s.seasonsData && s.seasonsData.length
+      ? s.seasonsData.reduce((sum, season) => sum + season.episode_count, 0)
+      : s.episodesTotal;
+  if (!totalFromSeasons || totalFromSeasons <= 0) return 0;
+  return Math.min(100, Math.round((totalWatched / totalFromSeasons) * 100));
+}
+
+export function seriesCard(
+  s: Series,
+  listView = false,
+  onFavouriteToggle?: (id: string) => void
+): string {
   const placeholder = `https://placehold.co/120x180/27272a/6366f1?text=${encodeURIComponent(s.name.charAt(0))}`;
   const img = s.poster ? IMG_BASE + s.poster : placeholder;
   const stars = s.rating != null ? `★ ${s.rating}/10` : '';
@@ -40,14 +55,16 @@ export function seriesCard(s: Series, listView = false): string {
       ? formatTime(s.episodesTotal * s.episodeRuntime)
       : '';
 
-  // Progress bar for watching series
+  // Accurate progress bar for watching series
   const progressBar =
-    s.status === 'watching' && s.episodesTotal && s.episodesTotal > 0
+    s.status === 'watching'
       ? (() => {
-          const pct = Math.min(100, Math.round((totalWatched / s.episodesTotal) * 100));
-          return `<div class="h-1 bg-zinc-700 rounded-full overflow-hidden mt-1">
+          const pct = computeAccurateProgress(s);
+          return pct > 0 || totalWatched > 0
+            ? `<div class="h-1 bg-zinc-700 rounded-full overflow-hidden mt-1">
             <div class="h-full bg-brand rounded-full transition-all" style="width:${pct}%"></div>
-          </div>`;
+          </div>`
+            : '';
         })()
       : '';
 
@@ -56,6 +73,29 @@ export function seriesCard(s: Series, listView = false): string {
   const nextEpBadge = nextEp
     ? `<span class="text-xs font-mono text-brand bg-brand/10 px-1.5 py-0.5 rounded border border-brand/20">${sanitize(nextEp)}</span>`
     : '';
+
+  // Favourite star icon
+  const starClass = s.isFavourite
+    ? 'text-yellow-400 hover:text-yellow-300'
+    : 'text-zinc-600 hover:text-yellow-400';
+  const starFill = s.isFavourite ? 'fill-current' : '';
+
+  // Notes icon (shown only when notes exist)
+  const notesIcon = s.notes?.trim()
+    ? `<span title="${sanitize(s.notes)}" class="text-zinc-500 flex items-center"><i data-lucide="file-text" class="w-3 h-3"></i></span>`
+    : '';
+
+  // Genre tags (first 2 to keep cards compact)
+  const genreChips =
+    s.genres && s.genres.length
+      ? s.genres
+          .slice(0, 2)
+          .map(
+            (g) =>
+              `<span class="text-xs bg-zinc-800 text-zinc-400 px-1.5 py-0.5 rounded">${sanitize(g)}</span>`
+          )
+          .join('')
+      : '';
 
   if (listView) {
     return `
@@ -69,8 +109,13 @@ export function seriesCard(s: Series, listView = false): string {
           ${epInfo ? `<span class="text-xs text-zinc-500">${epInfo}</span>` : ''}
           ${nextEpBadge}
           ${stars ? `<span class="text-xs text-yellow-400">${stars}</span>` : ''}
+          ${notesIcon}
+          ${genreChips}
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
+          <button data-fav-id="${s.id}" class="p-1 ${starClass} transition-colors shrink-0" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+            <i data-lucide="star" class="w-3.5 h-3.5 ${starFill}"></i>
+          </button>
           <button data-status-id="${s.id}"
             class="text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
             title="Cliquer pour changer le statut">
@@ -84,16 +129,22 @@ export function seriesCard(s: Series, listView = false): string {
       </div>`;
   }
 
+  void onFavouriteToggle; // used via event delegation in renderGrid
   return `
     <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex" role="article" tabindex="0" data-series-id="${s.id}">
-      <div class="shrink-0 w-16">
+      <div class="shrink-0 w-16 relative">
         <img src="${sanitize(img)}" alt="${sanitize(s.name)}" class="w-16 h-full min-h-[96px] object-cover" loading="lazy"
           onerror="this.src='${sanitize(placeholder)}'" />
       </div>
       <div class="p-2.5 flex flex-col flex-1 min-w-0 gap-1">
         <div class="flex items-start justify-between gap-1">
           <h3 class="font-semibold text-sm leading-tight line-clamp-2">${sanitize(s.name)}</h3>
-          <input type="checkbox" class="bulk-checkbox w-4 h-4 rounded shrink-0 mt-0.5" data-bulk-id="${s.id}" aria-label="Sélectionner ${sanitize(s.name)}" />
+          <div class="flex items-center gap-1 shrink-0">
+            <button data-fav-id="${s.id}" class="p-0.5 ${starClass} transition-colors" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+              <i data-lucide="star" class="w-3.5 h-3.5 ${starFill}"></i>
+            </button>
+            <input type="checkbox" class="bulk-checkbox w-4 h-4 rounded" data-bulk-id="${s.id}" aria-label="Sélectionner ${sanitize(s.name)}" />
+          </div>
         </div>
         <div class="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
           <span class="text-xs text-zinc-500">${sanitize(s.year || '')}</span>
@@ -101,7 +152,9 @@ export function seriesCard(s: Series, listView = false): string {
           <span class="text-xs text-zinc-500">${seasonInfo}</span>
           ${epInfo ? `<span class="text-xs text-zinc-600">·</span><span class="text-xs text-zinc-500">${epInfo}</span>` : ''}
           ${timeInfo ? `<span class="text-xs text-zinc-600">·</span><span class="text-xs text-zinc-500">${timeInfo}</span>` : ''}
+          ${notesIcon}
         </div>
+        ${genreChips ? `<div class="flex flex-wrap gap-1">${genreChips}</div>` : ''}
         ${nextEpBadge ? `<div>${nextEpBadge}</div>` : ''}
         ${progressBar}
         ${stars ? `<span class="text-xs text-yellow-400">${stars}</span>` : ''}
@@ -126,6 +179,7 @@ export function renderGrid(
   query: string,
   onEdit: (id: string) => void,
   onStatusChange: (id: string) => void,
+  onFavouriteToggle: (id: string) => void,
   listView = false,
   sort: SortOption = 'recent',
   bulkMode = false
@@ -180,6 +234,13 @@ export function renderGrid(
       if (id) onStatusChange(id);
     });
   });
+  grid.querySelectorAll<HTMLElement>('[data-fav-id]').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset['favId'];
+      if (id) onFavouriteToggle(id);
+    });
+  });
 
   // Keyboard navigation: Enter/Space on card opens edit modal
   grid.querySelectorAll<HTMLElement>('[data-series-id]').forEach((card) => {
@@ -200,6 +261,7 @@ export function renderSidebarCounts(store: SeriesStore): void {
     watching: all.filter((s) => s.status === 'watching').length,
     completed: all.filter((s) => s.status === 'completed').length,
     watchlist: all.filter((s) => s.status === 'watchlist').length,
+    favourites: all.filter((s) => !!s.isFavourite).length,
   };
   document.querySelectorAll<HTMLElement>('.nav-btn').forEach((btn) => {
     const existing = btn.querySelector('.count-badge');

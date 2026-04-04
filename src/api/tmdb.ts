@@ -9,20 +9,41 @@ export class TmdbClient {
     return `${TMDB_BASE}${path}?${params}`;
   }
 
+  private async fetchJson<T>(url: string, signal?: AbortSignal): Promise<T> {
+    const resp = await fetch(url, signal ? { signal } : undefined);
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+    if (resp.status === 401) throw new Error('Clé API invalide');
+    if (resp.status === 429) throw new Error('Limite de requêtes TMDB atteinte. Réessayez dans quelques secondes.');
+    if (!resp.ok) throw new Error(`TMDB erreur ${resp.status}`);
+    return resp.json() as Promise<T>;
+  }
+
   async searchSeries(query: string, signal?: AbortSignal): Promise<TmdbSearchResult[]> {
     if (!query.trim()) return [];
-    const resp = await fetch(this.buildUrl('/search/tv', { query }), { signal });
-    if (signal?.aborted) return [];
-    if (resp.status === 401) throw new Error('Clé API invalide');
-    if (!resp.ok) throw new Error(`TMDB erreur ${resp.status}`);
-    const data = (await resp.json()) as { results: TmdbSearchResult[] };
+    const data = await this.fetchJson<{ results: TmdbSearchResult[] }>(
+      this.buildUrl('/search/tv', { query }),
+      signal
+    );
     return data.results || [];
   }
 
   async getSeriesDetails(tmdbId: number): Promise<TmdbSeriesDetails | null> {
-    const resp = await fetch(this.buildUrl(`/tv/${tmdbId}`));
-    if (!resp.ok) return null;
-    return resp.json() as Promise<TmdbSeriesDetails>;
+    try {
+      return await this.fetchJson<TmdbSeriesDetails>(this.buildUrl(`/tv/${tmdbId}`));
+    } catch {
+      return null;
+    }
+  }
+
+  async getSimilarSeries(tmdbId: number): Promise<TmdbSearchResult[]> {
+    try {
+      const data = await this.fetchJson<{ results: TmdbSearchResult[] }>(
+        this.buildUrl(`/tv/${tmdbId}/similar`)
+      );
+      return data.results || [];
+    } catch {
+      return [];
+    }
   }
 
   async validateKey(): Promise<boolean> {

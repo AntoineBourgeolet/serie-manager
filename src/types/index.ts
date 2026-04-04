@@ -8,6 +8,12 @@ export interface SeasonData {
 
 export type WatchedEpisodes = Record<string, number[]>;
 
+export interface WatchHistoryEntry {
+  season: number;
+  episode: number;
+  watchedAt: string; // ISO date (YYYY-MM-DD)
+}
+
 export interface Series {
   id: string;
   tmdbId: number | null;
@@ -24,6 +30,12 @@ export interface Series {
   viewingDate: string;
   seasonsData: SeasonData[];
   watchedEpisodes: WatchedEpisodes;
+  // New fields (all optional for backward-compatibility)
+  notes?: string;
+  isFavourite?: boolean;
+  tags?: string[];
+  genres?: string[];
+  watchHistory?: WatchHistoryEntry[];
 }
 
 export interface TmdbSearchResult {
@@ -34,6 +46,16 @@ export interface TmdbSearchResult {
   overview: string;
 }
 
+export interface TmdbGenre {
+  id: number;
+  name: string;
+}
+
+export interface TmdbNetwork {
+  id: number;
+  name: string;
+}
+
 export interface TmdbSeriesDetails {
   id: number;
   name: string;
@@ -41,6 +63,10 @@ export interface TmdbSeriesDetails {
   number_of_episodes: number;
   episode_run_time: number[];
   seasons: TmdbSeason[];
+  genres?: TmdbGenre[];
+  networks?: TmdbNetwork[];
+  original_language?: string;
+  vote_average?: number;
 }
 
 export interface TmdbSeason {
