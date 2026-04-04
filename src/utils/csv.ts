@@ -24,6 +24,12 @@ const CSV_FIELDS: (keyof Series)[] = [
   'tags',
   'genres',
   'watchHistory',
+  'network',
+  'originCountry',
+  'originalLanguage',
+  'tmdbRating',
+  'productionStatus',
+  'createdBy',
 ];
 
 export function generateCSV(seriesList: Series[]): string {
@@ -104,6 +110,12 @@ export function importCSV(
           watchHistory: row['watchHistory']
             ? tryParseJSON(row['watchHistory'], [])
             : undefined,
+          network: row['network'] || undefined,
+          originCountry: row['originCountry'] || undefined,
+          originalLanguage: row['originalLanguage'] || undefined,
+          tmdbRating: row['tmdbRating'] ? Number(row['tmdbRating']) : undefined,
+          productionStatus: row['productionStatus'] || undefined,
+          createdBy: row['createdBy'] || undefined,
         };
       });
       onSuccess(series);

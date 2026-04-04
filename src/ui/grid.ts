@@ -97,9 +97,19 @@ export function seriesCard(
           .join('')
       : '';
 
+  // Network badge
+  const networkBadge = s.network
+    ? `<span class="text-xs bg-zinc-800 text-zinc-500 px-1.5 py-0.5 rounded">${sanitize(s.network)}</span>`
+    : '';
+
+  // TMDB rating
+  const tmdbRating = s.tmdbRating != null
+    ? `<span class="text-xs text-zinc-500" title="Note TMDB">★ ${s.tmdbRating.toFixed(1)}</span>`
+    : '';
+
   if (listView) {
     return `
-      <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex items-center gap-3 px-3 py-2" role="article" tabindex="0" data-series-id="${s.id}">
+      <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex items-center gap-3 px-3 py-2 cursor-pointer" role="article" tabindex="0" data-series-id="${s.id}" title="Cliquer pour modifier">
         <img src="${sanitize(img)}" alt="${sanitize(s.name)}" class="w-10 h-14 object-cover rounded shrink-0" loading="lazy"
           onerror="this.src='${sanitize(placeholder)}'" />
         <div class="flex-1 min-w-0 flex flex-wrap items-center gap-x-3 gap-y-0.5">
@@ -109,8 +119,10 @@ export function seriesCard(
           ${epInfo ? `<span class="text-xs text-zinc-500">${epInfo}</span>` : ''}
           ${nextEpBadge}
           ${stars ? `<span class="text-xs text-yellow-400">${stars}</span>` : ''}
+          ${tmdbRating}
           ${notesIcon}
           ${genreChips}
+          ${networkBadge}
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
           <button data-fav-id="${s.id}" class="p-1 ${starClass} transition-colors shrink-0" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
@@ -121,9 +133,6 @@ export function seriesCard(
             title="Cliquer pour changer le statut">
             ${statusLabel(s.status)}
           </button>
-          <button data-edit-id="${s.id}" class="p-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors shrink-0" title="Modifier">
-            <i data-lucide="pencil" class="w-3 h-3"></i>
-          </button>
           <input type="checkbox" class="bulk-checkbox w-4 h-4 rounded shrink-0" data-bulk-id="${s.id}" aria-label="Sélectionner ${sanitize(s.name)}" />
         </div>
       </div>`;
@@ -131,7 +140,7 @@ export function seriesCard(
 
   void onFavouriteToggle; // used via event delegation in renderGrid
   return `
-    <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex" role="article" tabindex="0" data-series-id="${s.id}">
+    <div class="card-transition bg-surface-card border border-surface-border rounded-xl overflow-hidden flex cursor-pointer" role="article" tabindex="0" data-series-id="${s.id}" title="Cliquer pour modifier">
       <div class="shrink-0 w-16 relative">
         <img src="${sanitize(img)}" alt="${sanitize(s.name)}" class="w-16 h-full min-h-[96px] object-cover" loading="lazy"
           onerror="this.src='${sanitize(placeholder)}'" />
@@ -155,18 +164,16 @@ export function seriesCard(
           ${notesIcon}
         </div>
         ${genreChips ? `<div class="flex flex-wrap gap-1">${genreChips}</div>` : ''}
+        ${networkBadge || tmdbRating ? `<div class="flex items-center gap-1.5">${networkBadge}${tmdbRating}</div>` : ''}
         ${nextEpBadge ? `<div>${nextEpBadge}</div>` : ''}
         ${progressBar}
         ${stars ? `<span class="text-xs text-yellow-400">${stars}</span>` : ''}
         ${s.viewingDate ? `<span class="text-xs text-zinc-600">${sanitize(s.viewingDate)}</span>` : ''}
-        <div class="mt-auto flex items-center gap-1.5 pt-1">
+        <div class="mt-auto pt-1">
           <button data-status-id="${s.id}"
-            class="flex-1 text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
+            class="w-full text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
             title="Cliquer pour changer le statut">
             ${statusLabel(s.status)}
-          </button>
-          <button data-edit-id="${s.id}" class="p-1.5 rounded-md bg-zinc-700 hover:bg-zinc-600 transition-colors shrink-0" title="Modifier">
-            <i data-lucide="pencil" class="w-3 h-3"></i>
           </button>
         </div>
       </div>
@@ -219,14 +226,20 @@ export function renderGrid(
   // Show/hide bulk checkboxes
   grid.querySelectorAll<HTMLInputElement>('.bulk-checkbox').forEach((cb) => {
     cb.style.display = bulkMode ? '' : 'none';
+    cb.addEventListener('click', (e) => e.stopPropagation());
   });
 
-  grid.querySelectorAll<HTMLElement>('[data-edit-id]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const id = btn.dataset['editId'];
+  // Whole card click opens edit modal
+  grid.querySelectorAll<HTMLElement>('[data-series-id]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      // Ignore clicks on interactive child elements
+      const target = e.target as HTMLElement;
+      if (target.closest('[data-status-id]') || target.closest('[data-fav-id]') || target.closest('.bulk-checkbox')) return;
+      const id = card.dataset['seriesId'];
       if (id) onEdit(id);
     });
   });
+
   grid.querySelectorAll<HTMLElement>('[data-status-id]').forEach((btn) => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();

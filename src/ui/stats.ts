@@ -54,18 +54,29 @@ function watchHistorySection(allHistory: (WatchHistoryEntry & { seriesName: stri
     .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt))
     .slice(0, 10);
   const rows = recent
-    .map(
-      (h) =>
-        `<div class="flex items-center gap-3 py-1.5 border-b border-surface-border last:border-0">
-          <span class="text-xs font-mono text-brand shrink-0">S${String(h.season).padStart(2, '0')}E${String(h.episode).padStart(2, '0')}</span>
-          <span class="text-sm text-zinc-300 flex-1 truncate">${h.seriesName}</span>
+    .map((h) => {
+      let badge: string;
+      let label: string;
+      if (h.type === 'series') {
+        badge = `<span class="text-xs font-mono text-green-400 bg-green-500/10 px-1.5 py-0.5 rounded border border-green-500/20 shrink-0">Série</span>`;
+        label = `Série complète${h.episodeCount ? ` (${h.episodeCount} ép.)` : ''} — ${h.seriesName}`;
+      } else if (h.type === 'season') {
+        badge = `<span class="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded border border-indigo-500/20 shrink-0">${h.seasonLabel || `S${String(h.season).padStart(2, '0')}`}</span>`;
+        label = `${h.seriesName}${h.episodeCount ? ` (${h.episodeCount} ép.)` : ''}`;
+      } else {
+        badge = `<span class="text-xs font-mono text-brand shrink-0">S${String(h.season).padStart(2, '0')}E${String(h.episode).padStart(2, '0')}</span>`;
+        label = h.seriesName;
+      }
+      return `<div class="flex items-center gap-3 py-1.5 border-b border-surface-border last:border-0">
+          ${badge}
+          <span class="text-sm text-zinc-300 flex-1 truncate">${label}</span>
           <span class="text-xs text-zinc-500 shrink-0">${h.watchedAt}</span>
-        </div>`
-    )
+        </div>`;
+    })
     .join('');
   return `
     <div class="bg-surface-card border border-surface-border rounded-xl p-4">
-      <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Derniers épisodes vus</p>
+      <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Derniers visionnages</p>
       <div>${rows}</div>
     </div>`;
 }
@@ -138,10 +149,88 @@ function completionStats(store: SeriesStore): string {
     </div>`;
 }
 
+function networkStats(store: SeriesStore): string {
+  const all = store.getAll();
+  const networkMap: Record<string, number> = {};
+  all.forEach((s) => {
+    if (s.network) networkMap[s.network] = (networkMap[s.network] || 0) + 1;
+  });
+
+  const entries = Object.entries(networkMap)
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+
+  if (!entries.length) return '';
+
+  const chips = entries
+    .map(
+      ([name, count]) =>
+        `<span class="inline-flex items-center gap-1.5 text-xs bg-zinc-800 text-zinc-300 px-2 py-1 rounded-lg">
+          ${name} <span class="text-zinc-500">${count}</span>
+        </span>`
+    )
+    .join('');
+
+  return `
+    <div class="bg-surface-card border border-surface-border rounded-xl p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Top plateformes / networks</p>
+      <div class="flex flex-wrap gap-2">${chips}</div>
+    </div>`;
+}
+
+function genreStats(store: SeriesStore): string {
+  const all = store.getAll();
+  if (!all.length) return '';
+
+  // Build genre → count map
+  const genreMap: Record<string, number> = {};
+  all.forEach((s) => {
+    (s.genres || []).forEach((g) => {
+      genreMap[g] = (genreMap[g] || 0) + 1;
+    });
+  });
+
+  // Only show genres with at least 2 series
+  const entries = Object.entries(genreMap)
+    .filter(([, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10);
+
+  if (!entries.length) return '';
+
+  const max = entries[0][1];
+  const bars = entries
+    .map(
+      ([genre, count]) => `
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-zinc-400 w-24 truncate shrink-0">${genre}</span>
+        <div class="flex-1 h-2 bg-zinc-700 rounded-full overflow-hidden">
+          <div class="h-full bg-brand rounded-full transition-all" style="width:${Math.round((count / max) * 100)}%"></div>
+        </div>
+        <span class="text-xs text-zinc-500 w-5 text-right shrink-0">${count}</span>
+      </div>`
+    )
+    .join('');
+
+  return `
+    <div class="bg-surface-card border border-surface-border rounded-xl p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Top genres</p>
+      <div class="space-y-2">${bars}</div>
+    </div>`;
+}
+
 export function renderStats(store: SeriesStore): void {
   const s = store.computeStats();
   const el = document.getElementById('stats-banner');
   if (!el) return;
+
+  // Empty state - no series at all
+  if (s.total === 0) {
+    el.innerHTML = `<div class="text-center py-6 text-zinc-500 text-sm">Ajoutez votre première série pour voir vos statistiques.</div>`;
+    createIcons({ icons, attrs: { 'stroke-width': '1.5' } });
+    return;
+  }
 
   // Build watch history across all series
   const allHistory: (WatchHistoryEntry & { seriesName: string })[] = [];
@@ -151,26 +240,37 @@ export function renderStats(store: SeriesStore): void {
     );
   });
 
+  // Series counts row — only show cards for statuses that have series
+  const countCards = [
+    statCard('tv-2', 'Total séries', s.total, 'indigo'),
+    s.countWatching > 0 ? statCard('play-circle', 'En cours', s.countWatching, 'blue') : '',
+    s.countCompleted > 0 ? statCard('check-circle-2', 'Terminées', s.countCompleted, 'green') : '',
+    s.countWatchlist > 0 ? statCard('bookmark', 'Watchlist', s.countWatchlist, 'yellow') : '',
+  ].filter(Boolean).join('');
+
+  // Episode counts row — only show non-zero statuses
+  const epCards = [
+    s.epWatching > 0 ? statCard('film', 'Épisodes en cours', s.epWatching, 'blue') : '',
+    s.epCompleted > 0 ? statCard('film', 'Épisodes terminés', s.epCompleted, 'green') : '',
+    s.epWatchlist > 0 ? statCard('film', 'Épisodes à voir', s.epWatchlist, 'yellow') : '',
+    s.epTotal > 0 ? statCard('film', 'Épisodes total', s.epTotal, 'indigo') : '',
+  ].filter(Boolean).join('');
+
+  // Time row — only show non-zero statuses
+  const timeCards = [
+    s.minWatching > 0 ? statCard('clock', 'Temps en cours', formatTime(s.minWatching), 'blue') : '',
+    s.minCompleted > 0 ? statCard('clock', 'Temps terminé', formatTime(s.minCompleted), 'green') : '',
+    s.minWatchlist > 0 ? statCard('clock', 'Temps à voir', formatTime(s.minWatchlist), 'yellow') : '',
+    s.minTotal > 0 ? statCard('clock', 'Temps total', formatTime(s.minTotal), 'indigo') : '',
+  ].filter(Boolean).join('');
+
   el.innerHTML = `
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      ${statCard('tv-2', 'Total séries', s.total, 'indigo')}
-      ${statCard('play-circle', 'En cours', s.countWatching, 'blue')}
-      ${statCard('check-circle-2', 'Terminées', s.countCompleted, 'green')}
-      ${statCard('bookmark', 'Watchlist', s.countWatchlist, 'yellow')}
-    </div>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      ${statCard('film', 'Épisodes en cours', s.epWatching || '–', 'blue')}
-      ${statCard('film', 'Épisodes terminés', s.epCompleted || '–', 'green')}
-      ${statCard('film', 'Épisodes à voir', s.epWatchlist || '–', 'yellow')}
-      ${statCard('film', 'Épisodes total', s.epTotal || '–', 'indigo')}
-    </div>
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      ${statCard('clock', 'Temps en cours', formatTime(s.minWatching), 'blue')}
-      ${statCard('clock', 'Temps terminé', formatTime(s.minCompleted), 'green')}
-      ${statCard('clock', 'Temps à voir', formatTime(s.minWatchlist), 'yellow')}
-      ${statCard('clock', 'Temps total', formatTime(s.minTotal), 'indigo')}
-    </div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${countCards}</div>
+    ${epCards ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${epCards}</div>` : ''}
+    ${timeCards ? `<div class="grid grid-cols-2 sm:grid-cols-4 gap-3">${timeCards}</div>` : ''}
     ${completionStats(store)}
+    ${genreStats(store)}
+    ${networkStats(store)}
     ${watchtimeChart(s.minWatching, s.minCompleted, s.minWatchlist)}
     ${watchTrendSection(allHistory)}
     ${watchHistorySection(allHistory)}`;

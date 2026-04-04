@@ -9,6 +9,8 @@ import {
   LS_LAST_EXPORT,
   LS_SORT_PREF,
   LS_THEME,
+  LS_STATS_COLLAPSED,
+  LS_SETTINGS,
   TMDB_BASE,
   TMDB_SEARCH_DEBOUNCE_MS,
   TMDB_SUGGESTIONS_LIMIT,
@@ -58,14 +60,98 @@ let listView: boolean = localStorage.getItem(LS_VIEW_PREF) === 'list';
 let sortBy: SortOption = (localStorage.getItem(LS_SORT_PREF) as SortOption) || 'recent';
 let bulkMode = false;
 const selectedIds = new Set<string>();
+let statsCollapsed: boolean = localStorage.getItem(LS_STATS_COLLAPSED) === 'true';
+
+// ─── APP SETTINGS ────────────────────────────
+interface AppSettings {
+  autoBackupInterval: number; // minutes, 0 = disabled
+  lastBackupAt?: string;
+}
+
+function loadSettings(): AppSettings {
+  try {
+    const raw = localStorage.getItem(LS_SETTINGS);
+    if (raw) return JSON.parse(raw) as AppSettings;
+  } catch { /* ignore */ }
+  return { autoBackupInterval: 0 };
+}
+
+function saveSettings(s: AppSettings): void {
+  localStorage.setItem(LS_SETTINGS, JSON.stringify(s));
+}
+
+const appSettings: AppSettings = loadSettings();
+let autoBackupTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── UI UPDATE ───────────────────────────────
+function applyStatsCollapsed(): void {
+  const banner = document.getElementById('stats-banner');
+  const chevron = document.getElementById('stats-toggle-chevron');
+  const toggle = document.getElementById('stats-toggle');
+  if (banner) banner.classList.toggle('hidden', statsCollapsed);
+  if (chevron) chevron.style.transform = statsCollapsed ? 'rotate(180deg)' : '';
+  if (toggle) toggle.setAttribute('aria-expanded', String(!statsCollapsed));
+}
+
 function updateUI(): void {
   renderStats(store);
+  applyStatsCollapsed();
   renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus, toggleFavourite, listView, sortBy, bulkMode);
   renderSidebarCounts(store);
   updateBulkToolbar();
   checkBackupReminder();
+}
+
+// ─── AUTO BACKUP ─────────────────────────────
+function setupAutoBackup(): void {
+  if (autoBackupTimer !== null) {
+    clearInterval(autoBackupTimer);
+    autoBackupTimer = null;
+  }
+  if (appSettings.autoBackupInterval > 0) {
+    autoBackupTimer = setInterval(() => {
+      exportToCSV(store.getAll());
+      appSettings.lastBackupAt = new Date().toISOString();
+      saveSettings(appSettings);
+      localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+      showToast('Sauvegarde automatique CSV téléchargée.', 'success');
+      checkBackupReminder();
+    }, appSettings.autoBackupInterval * 60 * 1000);
+  }
+}
+
+function openSettingsModal(): void {
+  const intervalInput = document.getElementById('settings-backup-interval') as HTMLInputElement | null;
+  const lastBackupEl = document.getElementById('settings-last-backup');
+  if (intervalInput) intervalInput.value = String(appSettings.autoBackupInterval || 0);
+  if (lastBackupEl) {
+    if (appSettings.lastBackupAt) {
+      const d = new Date(appSettings.lastBackupAt);
+      lastBackupEl.textContent = `Dernière sauvegarde : ${d.toLocaleString('fr-FR')}`;
+    } else {
+      lastBackupEl.textContent = 'Dernière sauvegarde : jamais';
+    }
+  }
+  document.getElementById('modal-settings')?.classList.remove('hidden');
+}
+
+function closeSettingsModal(): void {
+  document.getElementById('modal-settings')?.classList.add('hidden');
+}
+
+function saveSettingsFromModal(): void {
+  const intervalInput = document.getElementById('settings-backup-interval') as HTMLInputElement | null;
+  const val = parseInt(intervalInput?.value || '0');
+  appSettings.autoBackupInterval = isNaN(val) || val < 0 ? 0 : Math.min(val, 1440);
+  saveSettings(appSettings);
+  setupAutoBackup();
+  closeSettingsModal();
+  showToast(
+    appSettings.autoBackupInterval > 0
+      ? `Sauvegarde automatique toutes les ${appSettings.autoBackupInterval} min.`
+      : 'Sauvegarde automatique désactivée.',
+    'success'
+  );
 }
 
 // ─── BACKUP REMINDER ─────────────────────────
@@ -133,6 +219,7 @@ function openEditModal(id: string): void {
   const notesEl = document.getElementById('edit-notes') as HTMLTextAreaElement | null;
   const tagsEl = document.getElementById('edit-tags') as HTMLInputElement | null;
   const genresEl = document.getElementById('edit-genres-display');
+  const tmdbInfoEl = document.getElementById('edit-tmdb-info');
   if (titleEl) titleEl.textContent = s.name;
   if (statusEl) statusEl.value = s.status || 'watchlist';
   if (ratingEl) ratingEl.value = s.rating != null ? String(s.rating) : '';
@@ -145,6 +232,18 @@ function openEditModal(id: string): void {
           .map((g) => `<span class="text-xs bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded-full">${sanitize(g)}</span>`)
           .join('')
       : '<span class="text-xs text-zinc-600">–</span>';
+  }
+  if (tmdbInfoEl) {
+    const parts: string[] = [];
+    if (s.tmdbRating != null) parts.push(`<span title="Note TMDB">⭐ ${s.tmdbRating.toFixed(1)}/10</span>`);
+    if (s.network) parts.push(`<span>${sanitize(s.network)}</span>`);
+    if (s.originCountry) parts.push(`<span>${sanitize(s.originCountry)}</span>`);
+    if (s.productionStatus) parts.push(`<span>${sanitize(s.productionStatus)}</span>`);
+    if (s.createdBy) parts.push(`<span>Créateur : ${sanitize(s.createdBy)}</span>`);
+    tmdbInfoEl.innerHTML = parts.length
+      ? parts.map((p) => `<span class="text-xs text-zinc-500">${p}</span>`).join('<span class="text-zinc-700">·</span>')
+      : '';
+    tmdbInfoEl.classList.toggle('hidden', parts.length === 0);
   }
   renderEditEpisodesSection(s, (sid) => loadEpisodesForEditing(sid, store, tmdbClient));
   if (s.tmdbId && (!s.seasonsData || !s.seasonsData.length)) {
@@ -200,24 +299,102 @@ function saveEdit(): void {
     }
   }
 
-  // Record new watched episodes in watchHistory
+  // Record new watched episodes in watchHistory — grouped by season/series
   const today = todayISO();
   const existingHistory = s.watchHistory || [];
-  const newHistory: WatchHistoryEntry[] = [...existingHistory];
-  Object.entries(watchedEpisodes).forEach(([sn, eps]) => {
-    const oldEps = s.watchedEpisodes[sn] || [];
-    eps.forEach((ep) => {
-      if (!oldEps.includes(ep)) {
-        newHistory.push({ season: Number(sn), episode: ep, watchedAt: today });
+  // Keep existing history for episodes that are still watched
+  const retainedHistory = existingHistory.filter((h) => {
+    // Always keep season/series level entries - they represent bulk actions
+    if (h.type === 'season' || h.type === 'series') {
+      const sn = String(h.season);
+      const seasonData = (s.seasonsData || []).find((sd) => String(sd.season_number) === sn);
+      if (h.type === 'series') {
+        // Keep series entry if any episode is still watched
+        return Object.values(watchedEpisodes).some((eps) => eps.length > 0);
       }
-    });
-  });
-  // Remove entries for unchecked episodes
-  const filteredHistory = newHistory.filter((h) => {
+      if (seasonData) {
+        // Keep season entry if most episodes of that season are still watched
+        const watchedCount = (watchedEpisodes[sn] || []).length;
+        return watchedCount > 0;
+      }
+    }
+    // For episode-level entries, keep if episode is still watched
     const sn = String(h.season);
     return (watchedEpisodes[sn] || []).includes(h.episode);
   });
-  updated.watchHistory = filteredHistory;
+
+  const newHistory: WatchHistoryEntry[] = [...retainedHistory];
+
+  // Determine what was newly watched
+  const seasonsData = s.seasonsData || [];
+  const allNewlyWatchedSeasons: string[] = [];
+
+  Object.entries(watchedEpisodes).forEach(([sn, eps]) => {
+    const oldEps = s.watchedEpisodes[sn] || [];
+    const newEps = eps.filter((ep) => !oldEps.includes(ep));
+    if (!newEps.length) return;
+
+    const seasonData = seasonsData.find((sd) => String(sd.season_number) === sn);
+    const totalInSeason = seasonData ? seasonData.episode_count : eps.length;
+    const allNewSeasonWatched = eps.length >= totalInSeason && newEps.length > 0;
+
+    if (allNewSeasonWatched) {
+      // All (or remaining) episodes of this season were just watched — one season entry
+      allNewlyWatchedSeasons.push(sn);
+      // Remove any individual episode entries for this season from new history
+      const prevEpisodeEntries = newHistory.filter(
+        (h) => String(h.season) === sn && (!h.type || h.type === 'episode')
+      );
+      prevEpisodeEntries.forEach((e) => {
+        const idx = newHistory.indexOf(e);
+        if (idx !== -1) newHistory.splice(idx, 1);
+      });
+      newHistory.push({
+        season: Number(sn),
+        episode: 0,
+        watchedAt: today,
+        type: 'season',
+        seasonLabel: seasonData?.name || `Saison ${sn}`,
+        episodeCount: totalInSeason,
+      });
+    } else {
+      // Individual episodes
+      newEps.forEach((ep) => {
+        newHistory.push({ season: Number(sn), episode: ep, watchedAt: today, type: 'episode' });
+      });
+    }
+  });
+
+  // Check if ALL seasons were completed in this save → collapse to one series entry
+  const allSeasonsDone =
+    seasonsData.length > 0 &&
+    seasonsData.every((sd) => {
+      const sn = String(sd.season_number);
+      return (watchedEpisodes[sn] || []).length >= sd.episode_count;
+    });
+
+  if (allSeasonsDone && allNewlyWatchedSeasons.length > 0 && newStatus === 'completed') {
+    // Remove individual season entries added in this save, replace with one series entry
+    allNewlyWatchedSeasons.forEach((sn) => {
+      const idx = newHistory.findIndex(
+        (h) => String(h.season) === sn && h.type === 'season'
+      );
+      if (idx !== -1) newHistory.splice(idx, 1);
+    });
+    // Only add a series entry if one doesn't already exist
+    const hasSeriesEntry = newHistory.some((h) => h.type === 'series');
+    if (!hasSeriesEntry) {
+      newHistory.push({
+        season: 0,
+        episode: 0,
+        watchedAt: today,
+        type: 'series',
+        episodeCount: seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0),
+      });
+    }
+  }
+
+  updated.watchHistory = newHistory;
 
   updateCurrentSeasonFromWatched(updated);
 
@@ -419,6 +596,12 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
     seasonsData,
     watchedEpisodes: {},
     genres: genres.length ? genres : undefined,
+    network: details?.networks?.[0]?.name || undefined,
+    originCountry: details?.origin_country?.[0] || undefined,
+    originalLanguage: details?.original_language || undefined,
+    tmdbRating: details?.vote_average || undefined,
+    productionStatus: details?.status || undefined,
+    createdBy: details?.created_by?.map((c) => c.name).join(', ') || undefined,
   };
   store.add(series);
   closeSimilarSeriesModal();
@@ -432,7 +615,27 @@ function quickChangeStatus(id: string): void {
   if (!s) return;
   const newStatus = nextStatus(s.status);
   const updated = { ...s, status: newStatus };
-  if (newStatus === 'completed') markAllEpisodesWatched(updated);
+  if (newStatus === 'completed') {
+    markAllEpisodesWatched(updated);
+    // Add a single 'series' history entry for quick-complete
+    const today = todayISO();
+    const seasonsData = s.seasonsData || [];
+    const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
+    const existingHistory = s.watchHistory || [];
+    const hasSeriesEntry = existingHistory.some((h) => h.type === 'series');
+    if (!hasSeriesEntry) {
+      updated.watchHistory = [
+        ...existingHistory,
+        {
+          season: 0,
+          episode: 0,
+          watchedAt: today,
+          type: 'series' as const,
+          episodeCount: totalEps !== 0 ? totalEps : (s.episodesTotal ?? undefined),
+        },
+      ];
+    }
+  }
   store.update(id, updated);
   updateUI();
   showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
@@ -513,6 +716,12 @@ function setupEventListeners(): void {
   });
 
   document.getElementById('btn-apikey')?.addEventListener('click', showApiKeyModal);
+  document.getElementById('btn-settings')?.addEventListener('click', openSettingsModal);
+  document.getElementById('settings-modal-close')?.addEventListener('click', closeSettingsModal);
+  document.getElementById('settings-save')?.addEventListener('click', saveSettingsFromModal);
+  document.getElementById('modal-settings')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-settings')) closeSettingsModal();
+  });
   document.getElementById('apikey-close')?.addEventListener('click', closeApiKeyModal);
   document.getElementById('apikey-save')?.addEventListener('click', validateAndSaveTmdbKey);
   (document.getElementById('apikey-input') as HTMLInputElement | null)?.addEventListener(
@@ -711,6 +920,13 @@ function setupEventListeners(): void {
     document.getElementById('data-error-banner')?.classList.add('hidden');
   });
 
+  // Stats section collapse toggle (PC only)
+  document.getElementById('stats-toggle')?.addEventListener('click', () => {
+    statsCollapsed = !statsCollapsed;
+    localStorage.setItem(LS_STATS_COLLAPSED, String(statsCollapsed));
+    applyStatsCollapsed();
+  });
+
   // Sidebar collapse
   document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
     const sidebar = document.getElementById('sidebar');
@@ -735,6 +951,7 @@ function setupEventListeners(): void {
       closeGdSetupModal();
       closeHelpModal();
       closeSimilarSeriesModal();
+      closeSettingsModal();
       if (hasTmdbKey()) closeApiKeyModal();
       if (bulkMode) exitBulkMode();
       return;
@@ -746,7 +963,8 @@ function setupEventListeners(): void {
       document.getElementById('modal-edit')?.classList.contains('hidden') === false ||
       document.getElementById('modal-apikey')?.classList.contains('hidden') === false ||
       document.getElementById('modal-help')?.classList.contains('hidden') === false ||
-      document.getElementById('modal-similar')?.classList.contains('hidden') === false
+      document.getElementById('modal-similar')?.classList.contains('hidden') === false ||
+      document.getElementById('modal-settings')?.classList.contains('hidden') === false
     );
     if (inInput || anyModalOpen) return;
 
@@ -800,3 +1018,6 @@ if (sortSelectEl) sortSelectEl.value = sortBy;
 
 updateUI();
 if (!hasTmdbKey()) showApiKeyModal();
+
+// Start auto-backup if configured
+setupAutoBackup();
