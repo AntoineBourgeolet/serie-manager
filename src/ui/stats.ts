@@ -20,6 +20,32 @@ export function statCard(
   </div>`;
 }
 
+function watchtimeChart(
+  minWatching: number,
+  minCompleted: number,
+  minWatchlist: number
+): string {
+  const total = minWatching + minCompleted + minWatchlist;
+  if (!total) return '';
+  const pctW = Math.round((minWatching / total) * 100);
+  const pctC = Math.round((minCompleted / total) * 100);
+  const pctWl = 100 - pctW - pctC;
+  return `
+    <div class="bg-surface-card border border-surface-border rounded-xl p-4">
+      <p class="text-xs text-zinc-500 uppercase tracking-wider mb-3">Répartition du temps de visionnage</p>
+      <div class="flex h-5 rounded-full overflow-hidden gap-0.5 mb-3">
+        ${pctW > 0 ? `<div class="bg-blue-500 transition-all" style="width:${pctW}%" title="En cours: ${formatTime(minWatching)}"></div>` : ''}
+        ${pctC > 0 ? `<div class="bg-green-500 transition-all" style="width:${pctC}%" title="Terminées: ${formatTime(minCompleted)}"></div>` : ''}
+        ${pctWl > 0 ? `<div class="bg-yellow-500 transition-all" style="width:${pctWl}%" title="Watchlist: ${formatTime(minWatchlist)}"></div>` : ''}
+      </div>
+      <div class="flex flex-wrap gap-4 text-xs text-zinc-400">
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-blue-500 shrink-0"></span>En cours <strong class="text-zinc-200">${formatTime(minWatching)}</strong></span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-green-500 shrink-0"></span>Terminées <strong class="text-zinc-200">${formatTime(minCompleted)}</strong></span>
+        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-yellow-500 shrink-0"></span>Watchlist <strong class="text-zinc-200">${formatTime(minWatchlist)}</strong></span>
+      </div>
+    </div>`;
+}
+
 export function renderStats(store: SeriesStore): void {
   const s = store.computeStats();
   const el = document.getElementById('stats-banner');
@@ -42,6 +68,7 @@ export function renderStats(store: SeriesStore): void {
       ${statCard('clock', 'Temps terminé', formatTime(s.minCompleted), 'green')}
       ${statCard('clock', 'Temps à voir', formatTime(s.minWatchlist), 'yellow')}
       ${statCard('clock', 'Temps total', formatTime(s.minTotal), 'indigo')}
-    </div>`;
+    </div>
+    ${watchtimeChart(s.minWatching, s.minCompleted, s.minWatchlist)}`;
   createIcons({ icons, attrs: { 'stroke-width': '1.5' } });
 }

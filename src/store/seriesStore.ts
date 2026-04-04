@@ -2,6 +2,8 @@ import type { Series, SeriesStatus, AppStats } from '../types';
 import { LS_KEY } from '../config/constants';
 import { tryParseJSON } from '../utils/formatting';
 
+export type SortOption = 'name-asc' | 'name-desc' | 'rating-desc' | 'rating-asc' | 'recent';
+
 export class SeriesStore {
   private series: Series[] = [];
   private subscribers: Array<() => void> = [];
@@ -47,11 +49,33 @@ export class SeriesStore {
     return this.series;
   }
 
-  getFiltered(filter: SeriesStatus | 'all', query: string): Series[] {
-    return this.series.filter((s) => {
+  getFiltered(filter: SeriesStatus | 'all', query: string, sort: SortOption = 'recent'): Series[] {
+    const filtered = this.series.filter((s) => {
       const matchFilter = filter === 'all' || s.status === filter;
       const matchSearch = !query || s.name.toLowerCase().includes(query.toLowerCase());
       return matchFilter && matchSearch;
+    });
+
+    return filtered.slice().sort((a, b) => {
+      switch (sort) {
+        case 'name-asc':
+          return a.name.localeCompare(b.name);
+        case 'name-desc':
+          return b.name.localeCompare(a.name);
+        case 'rating-desc': {
+          const ra = a.rating ?? -1;
+          const rb = b.rating ?? -1;
+          return rb - ra;
+        }
+        case 'rating-asc': {
+          const ra = a.rating ?? Infinity;
+          const rb = b.rating ?? Infinity;
+          return ra - rb;
+        }
+        case 'recent':
+        default:
+          return 0; // preserve insertion order
+      }
     });
   }
 
