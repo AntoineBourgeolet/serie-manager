@@ -1,13 +1,19 @@
 import { createIcons, icons } from 'lucide';
 import { SeriesStore } from './store/seriesStore';
+import type { SortOption } from './store/seriesStore';
 import { TmdbClient } from './api/tmdb';
 import {
   LS_API_KEY,
   LS_GD_KEY,
+  LS_VIEW_PREF,
+  LS_LAST_EXPORT,
+  LS_SORT_PREF,
   TMDB_BASE,
   TMDB_SEARCH_DEBOUNCE_MS,
   TMDB_SUGGESTIONS_LIMIT,
   IMG_BASE,
+  BACKUP_REMINDER_THRESHOLD,
+  BACKUP_REMINDER_DAYS,
 } from './config/constants';
 import { generateId, todayISO, statusLabel, nextStatus } from './utils/formatting';
 import { sanitize } from './utils/validation';
@@ -20,7 +26,9 @@ import {
   openGdSetupModal,
   closeGdSetupModal,
   closeAddModal,
+  openAddModalFocus,
   closeEditModal,
+  openEditModalFocus,
 } from './ui/modals';
 import { renderStats } from './ui/stats';
 import { renderGrid, renderSidebarCounts } from './ui/grid';
@@ -41,12 +49,32 @@ let searchQuery = '';
 let editingId: string | null = null;
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
 let searchAbort: AbortController | null = null;
+let listView: boolean = localStorage.getItem(LS_VIEW_PREF) === 'list';
+let sortBy: SortOption = (localStorage.getItem(LS_SORT_PREF) as SortOption) || 'recent';
+let bulkMode = false;
+const selectedIds = new Set<string>();
 
 // ─── UI UPDATE ───────────────────────────────
 function updateUI(): void {
   renderStats(store);
-  renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus);
+  renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus, listView, sortBy, bulkMode);
   renderSidebarCounts(store);
+  updateBulkToolbar();
+  checkBackupReminder();
+}
+
+// ─── BACKUP REMINDER ─────────────────────────
+function checkBackupReminder(): void {
+  const banner = document.getElementById('backup-banner');
+  if (!banner) return;
+  const total = store.getAll().length;
+  if (total < BACKUP_REMINDER_THRESHOLD) { banner.classList.add('hidden'); return; }
+  const lastExport = localStorage.getItem(LS_LAST_EXPORT);
+  if (lastExport) {
+    const daysSince = (Date.now() - parseInt(lastExport)) / (1000 * 60 * 60 * 24);
+    if (daysSince < BACKUP_REMINDER_DAYS) { banner.classList.add('hidden'); return; }
+  }
+  banner.classList.remove('hidden');
 }
 
 // ─── API KEY MANAGEMENT ──────────────────────
@@ -106,6 +134,7 @@ function openEditModal(id: string): void {
     loadEpisodesForEditing(id, store, tmdbClient);
   }
   document.getElementById('modal-edit')?.classList.remove('hidden');
+  openEditModalFocus();
 }
 
 function saveEdit(): void {
@@ -149,12 +178,46 @@ function saveEdit(): void {
 function deleteSeries(): void {
   if (!editingId) return;
   const s = store.getAll().find((x) => x.id === editingId);
-  const name = s?.name || '';
+  if (!s) return;
+  const deletedSeries = { ...s };
+  const name = s.name;
   store.remove(editingId);
   editingId = null;
   closeEditModal();
   updateUI();
-  showToast(name ? `"${name}" supprimée.` : 'Série supprimée.', 'info');
+  showToast(
+    name ? `"${name}" supprimée.` : 'Série supprimée.',
+    'info',
+    {
+      label: 'Annuler',
+      onClick: () => {
+        store.add(deletedSeries);
+        updateUI();
+        showToast(`"${name}" restaurée.`, 'success');
+      },
+    }
+  );
+}
+
+// ─── BULK OPERATIONS ─────────────────────────
+function updateBulkToolbar(): void {
+  const toolbar = document.getElementById('bulk-toolbar');
+  const countEl = document.getElementById('bulk-count');
+  if (!toolbar) return;
+  if (bulkMode) {
+    toolbar.classList.remove('hidden');
+    if (countEl) countEl.textContent = String(selectedIds.size);
+  } else {
+    toolbar.classList.add('hidden');
+    selectedIds.clear();
+  }
+}
+
+function exitBulkMode(): void {
+  bulkMode = false;
+  selectedIds.clear();
+  document.getElementById('btn-bulk-select')?.setAttribute('aria-pressed', 'false');
+  updateUI();
 }
 
 // ─── ADD MODAL & TMDB SEARCH ─────────────────
@@ -175,7 +238,7 @@ function openAddModal(): void {
   errorEl?.classList.add('hidden');
   loadingEl?.classList.add('hidden');
   document.getElementById('modal-add')?.classList.remove('hidden');
-  searchInput?.focus();
+  openAddModalFocus();
 }
 
 async function handleTmdbSearch(query: string, signal: AbortSignal): Promise<void> {
@@ -290,9 +353,28 @@ function quickChangeStatus(id: string): void {
   showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
 }
 
+// ─── SORT ────────────────────────────────────
+function applySort(value: SortOption): void {
+  sortBy = value;
+  localStorage.setItem(LS_SORT_PREF, value);
+  updateUI();
+}
+
+// ─── VIEW TOGGLE ─────────────────────────────
+function applyViewToggle(list: boolean): void {
+  listView = list;
+  localStorage.setItem(LS_VIEW_PREF, list ? 'list' : 'grid');
+  const gridBtn = document.getElementById('btn-view-grid');
+  const listBtn = document.getElementById('btn-view-list');
+  if (gridBtn) gridBtn.classList.toggle('text-brand', !list);
+  if (listBtn) listBtn.classList.toggle('text-brand', list);
+  updateUI();
+}
+
 // ─── EVENT LISTENERS ─────────────────────────
 function setupEventListeners(): void {
   document.getElementById('btn-add')?.addEventListener('click', openAddModal);
+  document.getElementById('empty-add-btn')?.addEventListener('click', openAddModal);
   document.getElementById('modal-close')?.addEventListener('click', closeAddModal);
   document.getElementById('edit-modal-close')?.addEventListener('click', () => {
     editingId = null;
@@ -303,7 +385,9 @@ function setupEventListeners(): void {
 
   document.getElementById('btn-export')?.addEventListener('click', () => {
     exportToCSV(store.getAll());
+    localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
     showToast('Export CSV téléchargé !', 'success');
+    checkBackupReminder();
   });
 
   document.getElementById('btn-gdrive')?.addEventListener('click', () => {
@@ -316,7 +400,11 @@ function setupEventListeners(): void {
     saveToGoogleDrive(
       clientId,
       csv,
-      () => showToast('CSV sauvegardé sur Google Drive !', 'success'),
+      () => {
+        localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+        showToast('CSV sauvegardé sur Google Drive !', 'success');
+        checkBackupReminder();
+      },
       (msg) => showToast(msg, 'error')
     );
   });
@@ -344,7 +432,11 @@ function setupEventListeners(): void {
     saveToGoogleDrive(
       id,
       csv,
-      () => showToast('CSV sauvegardé sur Google Drive !', 'success'),
+      () => {
+        localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+        showToast('CSV sauvegardé sur Google Drive !', 'success');
+        checkBackupReminder();
+      },
       (msg) => showToast(msg, 'error')
     );
   });
@@ -415,6 +507,95 @@ function setupEventListeners(): void {
     (e.target as HTMLInputElement).value = '';
   });
 
+  // Sort dropdown
+  document.getElementById('sort-select')?.addEventListener('change', (e) => {
+    applySort((e.target as HTMLSelectElement).value as SortOption);
+  });
+
+  // View toggle buttons
+  document.getElementById('btn-view-grid')?.addEventListener('click', () => applyViewToggle(false));
+  document.getElementById('btn-view-list')?.addEventListener('click', () => applyViewToggle(true));
+
+  // Bulk select toggle
+  document.getElementById('btn-bulk-select')?.addEventListener('click', () => {
+    bulkMode = !bulkMode;
+    document.getElementById('btn-bulk-select')?.setAttribute('aria-pressed', String(bulkMode));
+    if (!bulkMode) selectedIds.clear();
+    updateUI();
+  });
+
+  // Bulk toolbar actions
+  document.getElementById('bulk-delete')?.addEventListener('click', () => {
+    if (!selectedIds.size) return;
+    const count = selectedIds.size;
+    selectedIds.forEach((id) => store.remove(id));
+    exitBulkMode();
+    showToast(`${count} série(s) supprimée(s).`, 'info');
+  });
+
+  document.getElementById('bulk-watchlist')?.addEventListener('click', () => {
+    selectedIds.forEach((id) => {
+      const s = store.getAll().find((x) => x.id === id);
+      if (s) store.update(id, { status: 'watchlist' });
+    });
+    exitBulkMode();
+    showToast('Statut mis à jour.', 'success');
+  });
+
+  document.getElementById('bulk-watching')?.addEventListener('click', () => {
+    selectedIds.forEach((id) => {
+      const s = store.getAll().find((x) => x.id === id);
+      if (s) store.update(id, { status: 'watching' });
+    });
+    exitBulkMode();
+    showToast('Statut mis à jour.', 'success');
+  });
+
+  document.getElementById('bulk-completed')?.addEventListener('click', () => {
+    selectedIds.forEach((id) => {
+      const s = store.getAll().find((x) => x.id === id);
+      if (s) {
+        const updated = { ...s, status: 'completed' as const };
+        markAllEpisodesWatched(updated);
+        store.update(id, updated);
+      }
+    });
+    exitBulkMode();
+    showToast('Statut mis à jour.', 'success');
+  });
+
+  document.getElementById('bulk-cancel')?.addEventListener('click', exitBulkMode);
+
+  // Delegated bulk checkbox listener on series grid
+  document.getElementById('series-grid')?.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.classList.contains('bulk-checkbox')) return;
+    const id = target.dataset['bulkId'];
+    if (!id) return;
+    if (target.checked) selectedIds.add(id);
+    else selectedIds.delete(id);
+    const countEl = document.getElementById('bulk-count');
+    if (countEl) countEl.textContent = String(selectedIds.size);
+  });
+
+  // Backup reminder dismiss
+  document.getElementById('backup-dismiss')?.addEventListener('click', () => {
+    localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+    document.getElementById('backup-banner')?.classList.add('hidden');
+  });
+
+  // Sidebar collapse
+  document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
+    const sidebar = document.getElementById('sidebar');
+    sidebar?.classList.toggle('sidebar-collapsed');
+    const icon = document.querySelector('#sidebar-toggle [data-lucide]');
+    if (icon) {
+      const isCollapsed = sidebar?.classList.contains('sidebar-collapsed');
+      icon.setAttribute('data-lucide', isCollapsed ? 'panel-left-open' : 'panel-left-close');
+      createIcons({ icons });
+    }
+  });
+
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     closeAddModal();
@@ -422,6 +603,7 @@ function setupEventListeners(): void {
     closeEditModal();
     closeGdSetupModal();
     if (hasTmdbKey()) closeApiKeyModal();
+    if (bulkMode) exitBulkMode();
   });
 }
 
@@ -429,5 +611,13 @@ function setupEventListeners(): void {
 store.load();
 createIcons({ icons });
 setupEventListeners();
+
+// Apply persisted view pref to buttons
+applyViewToggle(listView);
+
+// Apply persisted sort pref to dropdown
+const sortSelectEl = document.getElementById('sort-select') as HTMLSelectElement | null;
+if (sortSelectEl) sortSelectEl.value = sortBy;
+
 updateUI();
 if (!hasTmdbKey()) showApiKeyModal();

@@ -25,6 +25,27 @@
     .modal-backdrop { backdrop-filter: blur(4px); }
     .suggestion-item:hover { background-color: #3f3f46; }
     input[type="checkbox"] { accent-color: #6366f1; }
+
+    /* Collapsible sidebar */
+    #sidebar { transition: width 0.2s ease; }
+    #sidebar.sidebar-collapsed { width: 4rem; }
+    #sidebar.sidebar-collapsed .sidebar-label,
+    #sidebar.sidebar-collapsed .sidebar-section-label { display: none; }
+    #sidebar.sidebar-collapsed .sidebar-logo-text { display: none; }
+    #sidebar.sidebar-collapsed nav,
+    #sidebar.sidebar-collapsed .sidebar-actions { padding-left: 0.5rem; padding-right: 0.5rem; }
+    #sidebar.sidebar-collapsed .nav-btn { justify-content: center; padding-left: 0; padding-right: 0; }
+    #sidebar.sidebar-collapsed .count-badge { display: none; }
+
+    /* Mobile bottom nav */
+    @media (max-width: 767px) {
+      #sidebar { display: none; }
+      #mobile-bottom-nav { display: flex; }
+      main { padding-bottom: 4.5rem; }
+    }
+    @media (min-width: 768px) {
+      #mobile-bottom-nav { display: none; }
+    }
   </style>
 </head>
 <body class="dark min-h-screen text-zinc-100 flex">
@@ -101,71 +122,147 @@
   </div>
 
   <!-- SIDEBAR -->
-  <aside id="sidebar" class="w-64 shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0 overflow-y-auto">
-    <div class="px-6 py-5 border-b border-surface-border flex items-center gap-3">
-      <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center">
-        <i data-lucide="tv-2" class="w-4 h-4 text-white"></i>
+  <aside id="sidebar" class="w-64 shrink-0 bg-surface-card border-r border-surface-border flex flex-col h-screen sticky top-0 overflow-y-auto overflow-x-hidden">
+    <div class="px-4 py-5 border-b border-surface-border flex items-center justify-between gap-2">
+      <div class="flex items-center gap-3 min-w-0">
+        <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center shrink-0">
+          <i data-lucide="tv-2" class="w-4 h-4 text-white"></i>
+        </div>
+        <span class="sidebar-logo-text text-lg font-bold tracking-tight truncate">SeriesTracker</span>
       </div>
-      <span class="text-lg font-bold tracking-tight">SeriesTracker</span>
+      <button id="sidebar-toggle" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0" title="Réduire le menu" aria-label="Réduire le menu">
+        <i data-lucide="panel-left-close" class="w-4 h-4"></i>
+      </button>
     </div>
-    <nav class="px-3 py-4 flex-1">
-      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Biblioth&egrave;que</p>
+    <nav class="px-3 py-4 flex-1 sidebar-actions">
+      <p class="sidebar-section-label text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Biblioth&egrave;que</p>
       <ul id="sidebar-nav" class="space-y-1">
-        <li><button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white">
-          <i data-lucide="layout-grid" class="w-4 h-4"></i> Toutes les s&eacute;ries
+        <li><button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white" title="Toutes les séries">
+          <i data-lucide="layout-grid" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Toutes les s&eacute;ries</span>
         </button></li>
-        <li><button data-filter="watching" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-          <i data-lucide="play-circle" class="w-4 h-4"></i> En cours
+        <li><button data-filter="watching" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="En cours">
+          <i data-lucide="play-circle" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">En cours</span>
         </button></li>
-        <li><button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-          <i data-lucide="check-circle-2" class="w-4 h-4"></i> Termin&eacute;
+        <li><button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Terminé">
+          <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Termin&eacute;</span>
         </button></li>
-        <li><button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
-          <i data-lucide="bookmark" class="w-4 h-4"></i> Watchlist
+        <li><button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Watchlist">
+          <i data-lucide="bookmark" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Watchlist</span>
         </button></li>
       </ul>
     </nav>
-    <div class="px-4 py-4 border-t border-surface-border space-y-2">
-      <label class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-zinc-700 hover:bg-zinc-600 transition-colors">
-        <i data-lucide="upload" class="w-4 h-4"></i> Importer CSV
+    <div class="px-3 py-4 border-t border-surface-border space-y-2 sidebar-actions">
+      <label class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Importer CSV">
+        <i data-lucide="upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Importer CSV</span>
         <input id="csv-import-input" type="file" accept=".csv" class="hidden" />
       </label>
-      <button id="btn-export" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors">
-        <i data-lucide="download" class="w-4 h-4"></i> Exporter CSV
+      <button id="btn-export" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Exporter CSV">
+        <i data-lucide="download" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Exporter CSV</span>
       </button>
-      <button id="btn-gdrive" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors">
-        <i data-lucide="cloud-upload" class="w-4 h-4"></i> Sauvegarder sur Drive
+      <button id="btn-gdrive" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Sauvegarder sur Drive">
+        <i data-lucide="cloud-upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Sauvegarder sur Drive</span>
       </button>
-      <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500">
-        <i data-lucide="key" class="w-3.5 h-3.5"></i> Cl&eacute; API TMDB
+      <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Clé API TMDB">
+        <i data-lucide="key" class="w-3.5 h-3.5 shrink-0"></i> <span class="sidebar-label">Cl&eacute; API TMDB</span>
       </button>
     </div>
   </aside>
 
+  <!-- MOBILE BOTTOM NAV -->
+  <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-30 bg-surface-card border-t border-surface-border px-2 py-2 gap-1 justify-around">
+    <button data-filter="all" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-brand text-white">
+      <i data-lucide="layout-grid" class="w-5 h-5"></i>
+      <span>Tout</span>
+    </button>
+    <button data-filter="watching" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
+      <i data-lucide="play-circle" class="w-5 h-5"></i>
+      <span>En cours</span>
+    </button>
+    <button data-filter="completed" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
+      <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+      <span>Terminé</span>
+    </button>
+    <button data-filter="watchlist" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
+      <i data-lucide="bookmark" class="w-5 h-5"></i>
+      <span>Watchlist</span>
+    </button>
+  </nav>
+
   <!-- MAIN CONTENT -->
   <main class="flex-1 flex flex-col min-h-screen overflow-y-auto">
-    <header class="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-surface-border px-6 py-4 flex items-center gap-4">
-      <div class="relative flex-1 max-w-md">
+
+    <!-- BACKUP REMINDER BANNER -->
+    <div id="backup-banner" class="hidden bg-yellow-900/40 border-b border-yellow-700/40 px-6 py-2.5 flex items-center gap-3 text-sm text-yellow-300">
+      <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 text-yellow-400"></i>
+      <span class="flex-1">Pensez &agrave; exporter votre liste r&eacute;guli&egrave;rement pour &eacute;viter toute perte de donn&eacute;es.</span>
+      <button id="backup-dismiss" class="text-xs underline hover:no-underline shrink-0">Ignorer</button>
+    </div>
+
+    <header class="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-surface-border px-4 py-3 flex items-center gap-3 flex-wrap">
+      <div class="relative flex-1 min-w-[180px]">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
         <input id="search-input" type="text" placeholder="Rechercher une s&eacute;rie&hellip;"
           class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
+      <!-- Sort dropdown -->
+      <select id="sort-select" class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors text-zinc-300" aria-label="Trier par">
+        <option value="recent">R&eacute;cent</option>
+        <option value="name-asc">A &rarr; Z</option>
+        <option value="name-desc">Z &rarr; A</option>
+        <option value="rating-desc">Note &darr;</option>
+        <option value="rating-asc">Note &uarr;</option>
+      </select>
+      <!-- View toggle -->
+      <div class="flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
+        <button id="btn-view-grid" class="p-1.5 rounded-md transition-colors text-brand" title="Vue grille" aria-label="Vue grille">
+          <i data-lucide="layout-grid" class="w-4 h-4"></i>
+        </button>
+        <button id="btn-view-list" class="p-1.5 rounded-md transition-colors text-zinc-400 hover:text-zinc-200" title="Vue liste" aria-label="Vue liste">
+          <i data-lucide="list" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <!-- Bulk select toggle -->
+      <button id="btn-bulk-select" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
+        <i data-lucide="check-square" class="w-4 h-4"></i>
+      </button>
       <button id="btn-add" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
-        <i data-lucide="plus" class="w-4 h-4"></i> Ajouter une s&eacute;rie
+        <i data-lucide="plus" class="w-4 h-4"></i> <span class="hidden sm:inline">Ajouter une s&eacute;rie</span><span class="sm:hidden">Ajouter</span>
       </button>
     </header>
-    <div class="px-6 py-6 space-y-6">
+
+    <!-- BULK OPERATIONS TOOLBAR -->
+    <div id="bulk-toolbar" class="hidden bg-indigo-900/30 border-b border-indigo-700/30 px-6 py-2 flex items-center gap-3 text-sm">
+      <span class="text-zinc-300"><span id="bulk-count">0</span> s&eacute;rie(s) s&eacute;lectionn&eacute;e(s)</span>
+      <div class="flex items-center gap-2 ml-auto flex-wrap">
+        <button id="bulk-watchlist" class="px-3 py-1.5 rounded-lg bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 text-xs font-medium transition-colors">Watchlist</button>
+        <button id="bulk-watching" class="px-3 py-1.5 rounded-lg bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 text-xs font-medium transition-colors">En cours</button>
+        <button id="bulk-completed" class="px-3 py-1.5 rounded-lg bg-green-500/20 text-green-400 hover:bg-green-500/30 text-xs font-medium transition-colors">Termin&eacute;</button>
+        <button id="bulk-delete" class="px-3 py-1.5 rounded-lg bg-red-900/40 text-red-400 hover:bg-red-800/60 text-xs font-medium transition-colors">Supprimer</button>
+        <button id="bulk-cancel" class="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-xs font-medium transition-colors">Annuler</button>
+      </div>
+    </div>
+
+    <div class="px-4 py-6 space-y-6">
       <div id="stats-banner" class="space-y-3"></div>
       <div id="toast-area" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
+      <!-- aria-live region for screen readers -->
+      <span id="results-live" class="sr-only" aria-live="polite" aria-atomic="true"></span>
       <div>
         <div class="flex items-center justify-between mb-4">
           <h2 id="section-title" class="text-lg font-semibold">Toutes les s&eacute;ries</h2>
           <span id="series-count" class="text-sm text-zinc-500"></span>
         </div>
         <div id="series-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3"></div>
-        <p id="empty-state" class="hidden text-center py-20 text-zinc-500 text-sm">
-          Aucune s&eacute;rie trouv&eacute;e. Ajoutez-en une !
-        </p>
+        <div id="empty-state" class="hidden text-center py-20">
+          <div class="flex flex-col items-center gap-4 text-zinc-500">
+            <i data-lucide="tv-2" class="w-12 h-12 text-zinc-700"></i>
+            <p class="text-base font-medium">Aucune s&eacute;rie trouv&eacute;e</p>
+            <p class="text-sm">Ajoutez votre premi&egrave;re s&eacute;rie pour commencer votre biblioth&egrave;que.</p>
+            <button id="empty-add-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors mt-2">
+              <i data-lucide="plus" class="w-4 h-4"></i> Ajouter une s&eacute;rie
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </main>
