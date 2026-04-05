@@ -96,6 +96,76 @@
     .light-mode .bg-red-900\/40 { background-color: rgba(239,68,68,0.1) !important; }
     .light-mode .text-zinc-200 strong { color: #18181b !important; }
     .light-mode .bg-brand\/10 { background-color: rgba(99,102,241,0.1) !important; }
+
+    /* ─── BOTTOM SHEET MODALS (mobile) ─── */
+    .sheet-handle {
+      display: none;
+      width: 2rem; height: 0.25rem;
+      background: rgba(113,113,122,0.45);
+      border-radius: 9999px;
+      margin: 0.75rem auto 0.25rem;
+      flex-shrink: 0;
+    }
+    @media (max-width: 767px) {
+      .modal-sheet-outer { align-items: flex-end !important; }
+      .modal-sheet-inner {
+        border-radius: 1.5rem 1.5rem 0 0 !important;
+        max-width: 100% !important;
+        margin: 0 !important;
+        max-height: 92vh;
+        overflow-y: auto;
+      }
+      .modal-sheet-inner > .sheet-handle { display: block; }
+      /* Larger, finger-friendly episode tiles */
+      .ep-tile { min-width: 2.75rem !important; min-height: 2.75rem !important; font-size: 0.8125rem !important; }
+      /* Hide desktop search bar, show mobile icon */
+      .search-bar-desktop { display: none !important; }
+      .search-btn-mobile { display: flex !important; }
+      /* Hide header controls that go to drawer on mobile */
+      .header-desktop-only { display: none !important; }
+      /* Hide header add button on mobile (FAB takes over) */
+      #btn-add { display: none !important; }
+      /* Toast area above bottom nav */
+      #toast-area { bottom: 5.5rem !important; right: 1rem !important; }
+    }
+    @media (min-width: 768px) {
+      .search-btn-mobile { display: none !important; }
+      #fab-add { display: none !important; }
+      #mobile-search-overlay { display: none !important; }
+    }
+    /* FAB (hidden by default; shown on mobile via above rule) */
+    #fab-add { display: none; }
+    /* Mobile search overlay */
+    #mobile-search-overlay { transition: opacity 0.2s ease-out; }
+    /* Edit modal tabs */
+    .edit-tab-btn {
+      padding: 0.5rem 1rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      color: #a1a1aa;
+      border-bottom: 2px solid transparent;
+      border-top: none; border-left: none; border-right: none;
+      white-space: nowrap;
+      background: none;
+      cursor: pointer;
+      transition: color 0.15s ease, border-color 0.15s ease;
+    }
+    .edit-tab-btn.active { color: #f4f4f5; border-bottom-color: #6366f1; }
+    .edit-tab-btn:hover:not(.active) { color: #d4d4d8; }
+    .edit-tab-panel { display: none; }
+    .edit-tab-panel.active { display: block; }
+    /* Standardized card / modal animations */
+    .card-transition { transition: transform 0.2s ease-out, box-shadow 0.2s ease-out; }
+    #mobile-drawer { transition: transform 0.2s ease-out; }
+    /* Sidebar tools section label */
+    #sidebar.sidebar-collapsed .sidebar-tools-label { display: none; }
+    /* Reduce all motion when user prefers it */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
   </style>
 </head>
 <body class="min-h-screen flex">
@@ -124,8 +194,9 @@
   </div>
 
   <!-- TMDB API KEY SETUP MODAL -->
-  <div id="modal-apikey" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl">
+  <div id="modal-apikey" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80 modal-sheet-outer">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl modal-sheet-inner">
+      <div class="sheet-handle"></div>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg bg-brand flex items-center justify-center shrink-0">
@@ -157,8 +228,9 @@
   </div>
 
   <!-- GOOGLE DRIVE SETUP MODAL -->
-  <div id="modal-gd-setup" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-lg mx-4 p-6 space-y-4 shadow-2xl">
+  <div id="modal-gd-setup" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80 modal-sheet-outer">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-lg mx-4 p-6 space-y-4 shadow-2xl modal-sheet-inner">
+      <div class="sheet-handle"></div>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
@@ -195,8 +267,9 @@
   </div>
 
   <!-- KEYBOARD SHORTCUTS HELP MODAL -->
-  <div id="modal-help" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl">
+  <div id="modal-help" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80 modal-sheet-outer">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl modal-sheet-inner">
+      <div class="sheet-handle"></div>
       <div class="flex items-center justify-between">
         <h3 class="text-lg font-semibold">Raccourcis clavier</h3>
         <button id="help-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
@@ -233,8 +306,9 @@
   </div>
 
   <!-- SIMILAR SERIES SUGGESTIONS MODAL -->
-  <div id="modal-similar" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl">
+  <div id="modal-similar" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80 modal-sheet-outer">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-md mx-4 p-6 space-y-4 shadow-2xl modal-sheet-inner">
+      <div class="sheet-handle"></div>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center shrink-0">
@@ -257,8 +331,9 @@
   </div>
 
   <!-- SETTINGS MODAL -->
-  <div id="modal-settings" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
-    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl">
+  <div id="modal-settings" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80 modal-sheet-outer">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-sm mx-4 p-6 space-y-4 shadow-2xl modal-sheet-inner">
+      <div class="sheet-handle"></div>
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
           <div class="w-10 h-10 rounded-lg bg-zinc-700 flex items-center justify-center shrink-0">
@@ -337,6 +412,7 @@
       </ul>
     </nav>
     <div class="px-3 py-4 border-t border-surface-border space-y-2 sidebar-actions">
+      <p class="sidebar-tools-label sidebar-section-label text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Outils</p>
       <label class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Importer CSV">
         <i data-lucide="upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Importer CSV</span>
         <input id="csv-import-input" type="file" accept=".csv" class="hidden" />
@@ -380,6 +456,9 @@
     <div class="px-3 py-2">
       <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Filtres</p>
       <div class="space-y-0.5">
+        <button data-filter="stats" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="bar-chart-2" class="w-4 h-4 shrink-0"></i> Statistiques
+        </button>
         <button data-filter="on-hold" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
           <i data-lucide="pause-circle" class="w-4 h-4 shrink-0"></i> En pause
         </button>
@@ -446,10 +525,7 @@
     <button data-filter="watchlist" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
       <i data-lucide="bookmark" class="w-5 h-5"></i><span>Watchlist</span>
     </button>
-    <button data-filter="stats" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
-      <i data-lucide="bar-chart-2" class="w-5 h-5"></i><span>Stats</span>
-    </button>
-    <button id="mobile-more-btn" class="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+    <button id="mobile-more-btn" class="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
       <i data-lucide="menu" class="w-5 h-5"></i><span>Plus</span>
     </button>
   </nav>
@@ -481,11 +557,15 @@
     </div>
 
     <header class="sticky top-0 z-20 bg-surface/90 backdrop-blur border-b border-surface-border px-4 py-3 flex items-center gap-3 flex-wrap">
-      <div class="relative flex-1 min-w-[180px]">
+      <div class="relative flex-1 min-w-[180px] search-bar-desktop">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
         <input id="search-input" type="text" placeholder="Rechercher une s&eacute;rie&hellip;"
           class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
+      <!-- Mobile: search icon button -->
+      <button id="btn-search-mobile" class="search-btn-mobile hidden p-2 rounded-lg bg-surface-card border border-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Rechercher" aria-label="Rechercher">
+        <i data-lucide="search" class="w-4 h-4"></i>
+      </button>
       <select id="sort-select" class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors text-zinc-300" aria-label="Trier par">
         <option value="recent">R&eacute;cent</option>
         <option value="name-asc">A &rarr; Z</option>
@@ -493,7 +573,7 @@
         <option value="rating-desc">Note &darr;</option>
         <option value="rating-asc">Note &uarr;</option>
       </select>
-      <div class="flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
+      <div class="header-desktop-only flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
         <button id="btn-view-grid" class="p-1.5 rounded-md transition-colors text-brand" title="Vue grille" aria-label="Vue grille">
           <i data-lucide="layout-grid" class="w-4 h-4"></i>
         </button>
@@ -501,10 +581,10 @@
           <i data-lucide="list" class="w-4 h-4"></i>
         </button>
       </div>
-      <button id="btn-bulk-select" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
+      <button id="btn-bulk-select" class="header-desktop-only p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
         <i data-lucide="check-square" class="w-4 h-4"></i>
       </button>
-      <button id="btn-help" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
+      <button id="btn-help" class="header-desktop-only p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
         <i data-lucide="keyboard" class="w-4 h-4"></i>
       </button>
       <button id="btn-add" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
