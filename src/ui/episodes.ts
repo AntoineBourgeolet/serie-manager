@@ -3,8 +3,7 @@ import type { Series, SeasonData, TmdbSeriesDetails } from '../types';
 import type { SeriesStore } from '../store/seriesStore';
 import type { TmdbClient } from '../api/tmdb';
 import { sanitize } from '../utils/validation';
-import { showToast } from './modals';
-import { todayISO } from '../utils/formatting';
+import { showToast, promptDate } from './modals';
 
 export function extractSeasonsData(details: TmdbSeriesDetails): SeasonData[] {
   if (!details || !details.seasons) return [];
@@ -63,9 +62,18 @@ function updateEpTileStyle(ep: HTMLInputElement): void {
   }
 }
 
+// ─── EPISODE DATE MAP ────────────────────────
+// Tracks dates chosen via the date-picker for episodes checked in the current edit session
+export const episodeDateMap = new Map<string, string>();
+
+export function clearEpisodeDateMap(): void {
+  episodeDateMap.clear();
+}
+
 export function renderEditEpisodesSection(
   s: Series,
-  onRefresh: (id: string) => void
+  onRefresh: (id: string) => void,
+  onEditDate?: (sn: number, ep: number, newDate: string) => void
 ): void {
   const container = document.getElementById('edit-episodes-section');
   if (!container) return;
@@ -147,21 +155,17 @@ export function renderEditEpisodesSection(
                       const badgeDot = watchEntry
                         ? '<span class="absolute bottom-0.5 inset-x-0 flex justify-center pointer-events-none"><span class="w-1 h-1 rounded-full bg-white/50 block"></span></span>'
                         : '';
-                      return `<label class="ep-tile relative inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isWatched ? 'bg-brand text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"${titleAttr}>
-                        <input type="checkbox" class="sr-only" data-ep-season="${sn}" data-ep-num="${ep}" aria-label="Épisode ${ep}" ${isWatched ? 'checked' : ''}>
-                        ${ep}${badgeDot}
-                      </label>`;
+                      const editBtn = isWatched
+                        ? `<button type="button" data-ep-edit-date="${sn}_${ep}" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-zinc-600 hover:bg-brand flex items-center justify-center z-10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer" title="Modifier la date" aria-label="Modifier la date de l'épisode ${ep}"><span class="text-white leading-none" style="font-size:8px">✎</span></button>`
+                        : '';
+                      return `<div class="relative inline-flex group">
+                        <label class="ep-tile relative inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isWatched ? 'bg-brand text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"${titleAttr}>
+                          <input type="checkbox" class="sr-only" data-ep-season="${sn}" data-ep-num="${ep}" aria-label="Épisode ${ep}" ${isWatched ? 'checked' : ''}>
+                          ${ep}${badgeDot}
+                        </label>${editBtn}
+                      </div>`;
                     })
                     .join('')}
-                </div>
-                <div class="mt-2 pt-2 border-t border-surface-border/50 flex items-center gap-2">
-                  <label class="text-xs text-zinc-500 shrink-0">Date saison :</label>
-                  <input type="date" data-season-watch-date="${sn}"
-                    class="flex-1 bg-surface border border-surface-border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand"
-                    title="Date de visionnage pour cette saison (remplace la date globale)" />
-                  <button type="button" data-season-date-today="${sn}"
-                    class="shrink-0 px-2 py-1 rounded-lg text-xs bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300"
-                    title="Aujourd'hui">Auj.</button>
                 </div>
               </div>
             </div>`;
@@ -213,20 +217,68 @@ export function renderEditEpisodesSection(
     }
 
     if (seasonCheck) {
-      seasonCheck.addEventListener('change', () => {
+      seasonCheck.addEventListener('change', async () => {
+        if (!seasonCheck.checked) {
+          // User unchecked the season
+          getEpBoxes().forEach((ep) => {
+            ep.checked = false;
+            updateEpTileStyle(ep);
+            episodeDateMap.delete(`${sn}_${ep.dataset['epNum'] || '0'}`);
+          });
+          seasonCheck.indeterminate = false;
+          if (progressBar) progressBar.style.width = '0%';
+          if (countEl) countEl.textContent = `0/${season.episode_count}`;
+          return;
+        }
+
+        // User checked the season → prompt for date
+        const date = await promptDate(`Saison ${season.season_number} — ${sanitize(season.name)}`);
+        if (date === null) {
+          // Cancelled — revert checkbox
+          seasonCheck.checked = false;
+          return;
+        }
+
         getEpBoxes().forEach((ep) => {
-          ep.checked = seasonCheck.checked;
+          ep.checked = true;
           updateEpTileStyle(ep);
+          episodeDateMap.set(`${sn}_${ep.dataset['epNum'] || '0'}`, date);
         });
         seasonCheck.indeterminate = false;
-        const n = seasonCheck.checked ? season.episode_count : 0;
-        if (progressBar) progressBar.style.width = (seasonCheck.checked ? '100' : '0') + '%';
-        if (countEl) countEl.textContent = `${n}/${season.episode_count}`;
+        if (progressBar) progressBar.style.width = '100%';
+        if (countEl) countEl.textContent = `${season.episode_count}/${season.episode_count}`;
       });
     }
 
     container.querySelectorAll<HTMLInputElement>(`[data-ep-season="${sn}"]`).forEach((ep) => {
-      ep.addEventListener('change', () => {
+      ep.addEventListener('change', async () => {
+        const epNum = ep.dataset['epNum'] || '0';
+
+        if (!ep.checked) {
+          // User unchecked the episode
+          updateEpTileStyle(ep);
+          episodeDateMap.delete(`${sn}_${epNum}`);
+          const all = Array.from(getEpBoxes());
+          const checkedCount = all.filter((e) => e.checked).length;
+          if (seasonCheck) {
+            seasonCheck.checked = checkedCount === all.length;
+            seasonCheck.indeterminate = checkedCount > 0 && checkedCount < all.length;
+          }
+          const pct = season.episode_count > 0 ? Math.round((checkedCount / season.episode_count) * 100) : 0;
+          if (progressBar) progressBar.style.width = pct + '%';
+          if (countEl) countEl.textContent = `${checkedCount}/${season.episode_count}`;
+          return;
+        }
+
+        // User checked the episode → prompt for date
+        const date = await promptDate(`Saison ${season.season_number} — Épisode ${epNum}`);
+        if (date === null) {
+          // Cancelled — revert checkbox
+          ep.checked = false;
+          return;
+        }
+
+        episodeDateMap.set(`${sn}_${epNum}`, date);
         updateEpTileStyle(ep);
         const all = Array.from(getEpBoxes());
         const checkedCount = all.filter((e) => e.checked).length;
@@ -243,14 +295,26 @@ export function renderEditEpisodesSection(
       });
     });
 
-    // Per-season "today" button
-    const seasonDateAujBtn = container.querySelector<HTMLElement>(`[data-season-date-today="${sn}"]`);
-    if (seasonDateAujBtn) {
-      seasonDateAujBtn.addEventListener('click', () => {
-        const dateInput = container.querySelector<HTMLInputElement>(`[data-season-watch-date="${sn}"]`);
-        if (dateInput) dateInput.value = todayISO();
+    // Edit date buttons for already-watched episodes
+    container.querySelectorAll<HTMLElement>(`[data-ep-edit-date^="${sn}_"]`).forEach((btn) => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        const key = btn.dataset['epEditDate']!;
+        const [snStr, epStr] = key.split('_');
+        const snNum = parseInt(snStr, 10);
+        const epNum = parseInt(epStr, 10);
+        const existingEntry = (s.watchHistory || [])
+          .filter(
+            (h) => (!h.type || h.type === 'episode') && h.season === snNum && h.episode === epNum
+          )
+          .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt))[0];
+        const newDate = await promptDate(`Modifier — S${snNum}E${epNum}`, existingEntry?.watchedAt);
+        if (newDate !== null && onEditDate) {
+          onEditDate(snNum, epNum, newDate);
+        }
       });
-    }
+    });
   });
 
   document.getElementById('refresh-episodes-btn')?.addEventListener('click', () => {
@@ -261,7 +325,8 @@ export function renderEditEpisodesSection(
 export async function loadEpisodesForEditing(
   seriesId: string,
   store: SeriesStore,
-  client: TmdbClient
+  client: TmdbClient,
+  onEditDate?: (sn: number, ep: number, newDate: string) => void
 ): Promise<void> {
   const s = store.getAll().find((x) => x.id === seriesId);
   if (!s || !s.tmdbId) return;
@@ -275,7 +340,7 @@ export async function loadEpisodesForEditing(
       });
       const updated = store.getAll().find((x) => x.id === seriesId);
       if (updated) {
-        renderEditEpisodesSection(updated, (id) => loadEpisodesForEditing(id, store, client));
+        renderEditEpisodesSection(updated, (id) => loadEpisodesForEditing(id, store, client, onEditDate), onEditDate);
       }
     }
   } catch {
@@ -292,7 +357,7 @@ export async function loadEpisodesForEditing(
       createIcons({ icons });
       document
         .getElementById('retry-episodes-btn')
-        ?.addEventListener('click', () => loadEpisodesForEditing(seriesId, store, client));
+        ?.addEventListener('click', () => loadEpisodesForEditing(seriesId, store, client, onEditDate));
     }
     showToast('Erreur lors du chargement des épisodes.', 'error');
   }
