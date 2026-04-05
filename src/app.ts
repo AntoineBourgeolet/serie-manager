@@ -1067,6 +1067,9 @@ function setupEventListeners(): void {
         }
       }
       updateCurrentSeasonFromWatched(updated);
+      if (newStatus === 'completed' && !updated.seasonsData?.length && updated.totalSeasons) {
+        updated.season = updated.totalSeasons;
+      }
       store.update(id, updated);
       updateUI();
       showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
@@ -1148,6 +1151,10 @@ function setupEventListeners(): void {
       if (s) {
         const updated = { ...s, status: 'completed' as const };
         markAllEpisodesWatched(updated);
+        updateCurrentSeasonFromWatched(updated);
+        if (!updated.seasonsData?.length && updated.totalSeasons) {
+          updated.season = updated.totalSeasons;
+        }
         store.update(id, updated);
       }
     });
