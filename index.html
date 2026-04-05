@@ -617,18 +617,6 @@
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage des &eacute;pisodes</label>
-          <p class="text-xs text-zinc-500 mt-0.5 mb-1">Utilis&eacute;e pour les &eacute;pisodes coch&eacute;s dans cette session</p>
-          <div class="flex items-center gap-2">
-            <input id="edit-watch-date" type="date"
-              class="flex-1 bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
-            <button id="watch-date-today" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Aujourd'hui">Auj.</button>
-            <button id="watch-date-yesterday" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Hier">Hier</button>
-            <button id="watch-date-minus2" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Il y a 2 jours">−2j</button>
-            <button id="watch-date-minus7" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Il y a 7 jours">−7j</button>
-          </div>
-        </div>
-        <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Notes personnelles</label>
           <textarea id="edit-notes" rows="2" placeholder="Vos impressions, remarques&hellip;"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none placeholder-zinc-600"></textarea>
@@ -651,6 +639,23 @@
         </button>
         <button id="edit-delete" class="px-4 py-2 rounded-lg bg-red-900/40 hover:bg-red-800/60 text-red-400 text-sm font-semibold transition-colors">
           Supprimer
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- DATE PICKER MODAL -->
+  <div id="date-picker-modal" class="hidden fixed inset-0 z-[300] flex items-center justify-center modal-backdrop bg-black/80">
+    <div class="bg-surface-card border border-surface-border rounded-2xl w-full max-w-xs mx-4 p-6 space-y-4 shadow-2xl">
+      <h3 id="date-picker-label" class="text-base font-semibold text-zinc-100">Date de visionnage</h3>
+      <input id="date-picker-input" type="date"
+        class="w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+      <div class="flex gap-3">
+        <button id="date-picker-confirm" type="button" class="flex-1 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
+          Confirmer
+        </button>
+        <button id="date-picker-cancel" type="button" class="px-4 py-2 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-sm font-medium transition-colors">
+          Annuler
         </button>
       </div>
     </div>

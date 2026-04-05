@@ -21,7 +21,7 @@ import {
   BACKUP_REMINDER_THRESHOLD,
   BACKUP_REMINDER_DAYS,
 } from './config/constants';
-import { generateId, todayISO, yesterdayISO, daysAgoISO, lastUsedWatchDate, statusLabel } from './utils/formatting';
+import { generateId, todayISO, statusLabel } from './utils/formatting';
 import { sanitize } from './utils/validation';
 import { exportToCSV, importCSV, generateCSV } from './utils/csv';
 import { saveToGoogleDrive } from './api/googleDrive';
@@ -39,6 +39,7 @@ import {
   closeHelpModal,
   openSimilarSeriesModal,
   closeSimilarSeriesModal,
+  promptDate,
 } from './ui/modals';
 import { renderStats } from './ui/stats';
 import { renderGrid, renderSidebarCounts } from './ui/grid';
@@ -48,6 +49,8 @@ import {
   loadEpisodesForEditing,
   markAllEpisodesWatched,
   updateCurrentSeasonFromWatched,
+  clearEpisodeDateMap,
+  episodeDateMap,
 } from './ui/episodes';
 import type { SeriesStatus, TmdbSearchResult, WatchHistoryEntry } from './types';
 
@@ -334,6 +337,7 @@ function openEditModal(id: string): void {
   const s = store.getAll().find((x) => x.id === id);
   if (!s) return;
   editingId = id;
+  clearEpisodeDateMap();
   const titleEl = document.getElementById('edit-modal-title');
   const statusEl = document.getElementById('edit-status') as HTMLSelectElement | null;
   const ratingEl = document.getElementById('edit-rating') as HTMLInputElement | null;
@@ -346,8 +350,6 @@ function openEditModal(id: string): void {
   if (statusEl) statusEl.value = s.status || 'watchlist';
   if (ratingEl) ratingEl.value = s.rating != null ? String(s.rating) : '';
   if (dateEl) dateEl.value = s.viewingDate || todayISO();
-  const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-  if (watchDateEl) watchDateEl.value = lastUsedWatchDate(s);
   if (notesEl) notesEl.value = s.notes || '';
   if (tagsEl) tagsEl.value = s.tags ? s.tags.join(', ') : '';
   if (genresEl) {
@@ -369,9 +371,35 @@ function openEditModal(id: string): void {
       : '';
     tmdbInfoEl.classList.toggle('hidden', parts.length === 0);
   }
-  renderEditEpisodesSection(s, (sid) => loadEpisodesForEditing(sid, store, tmdbClient));
+
+  function onEpEditDate(sn: number, ep: number, newDate: string): void {
+    const series = store.getAll().find((x) => x.id === id);
+    if (!series) return;
+    const history = [...(series.watchHistory || [])];
+    let updated = false;
+    for (let i = 0; i < history.length; i++) {
+      const h = history[i];
+      if ((!h.type || h.type === 'episode') && h.season === sn && h.episode === ep) {
+        history[i] = { ...h, watchedAt: newDate };
+        updated = true;
+        break;
+      }
+    }
+    if (!updated) {
+      history.push({ season: sn, episode: ep, watchedAt: newDate, type: 'episode' });
+    }
+    store.update(id, { watchHistory: history });
+    // Update only the tooltip of the affected tile to avoid losing pending checkbox state
+    const container = document.getElementById('edit-episodes-section');
+    const checkbox = container?.querySelector<HTMLInputElement>(`[data-ep-season="${sn}"][data-ep-num="${ep}"]`);
+    const tile = checkbox?.closest('.ep-tile');
+    if (tile) tile.setAttribute('title', `Vu le ${newDate}`);
+    showToast('Date mise à jour.', 'success');
+  }
+
+  renderEditEpisodesSection(s, (sid) => loadEpisodesForEditing(sid, store, tmdbClient, onEpEditDate), onEpEditDate);
   if (s.tmdbId && (!s.seasonsData || !s.seasonsData.length)) {
-    loadEpisodesForEditing(id, store, tmdbClient);
+    loadEpisodesForEditing(id, store, tmdbClient, onEpEditDate);
   }
   document.getElementById('modal-edit')?.classList.remove('hidden');
   openEditModalFocus();
@@ -390,8 +418,6 @@ function saveEdit(): void {
   const r = parseFloat(ratingEl?.value || '');
   const rating = isNaN(r) ? null : Math.min(10, Math.max(0, r));
   const viewingDate = dateEl?.value || '';
-  const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-  const watchDate = watchDateEl?.value || todayISO();
   const notes = notesEl?.value.trim() || undefined;
   const tagsRaw = tagsEl?.value || '';
   const tags = tagsRaw
@@ -403,7 +429,7 @@ function saveEdit(): void {
 
   const updated = { ...s, status: newStatus, rating, viewingDate, notes, tags };
 
-  // Reference to the episodes section container (used both for checkbox reading and per-season dates)
+  // Reference to the episodes section container (used for checkbox reading)
   const episodesContainer = document.getElementById('edit-episodes-section');
 
   // Collect watched episodes from checkboxes (or mark all if completed)
@@ -461,10 +487,6 @@ function saveEdit(): void {
     const newEps = eps.filter((ep) => !oldEps.includes(ep));
     if (!newEps.length) return;
 
-    // Per-season date override: if the season has its own date input, use it; otherwise fall back to global watchDate
-    const seasonDateEl = episodesContainer?.querySelector<HTMLInputElement>(`[data-season-watch-date="${sn}"]`);
-    const seasonDate = seasonDateEl?.value || watchDate;
-
     const seasonData = seasonsData.find((sd) => String(sd.season_number) === sn);
     const totalInSeason = seasonData ? seasonData.episode_count : eps.length;
     const allNewSeasonWatched = eps.length >= totalInSeason && newEps.length > 0;
@@ -480,6 +502,8 @@ function saveEdit(): void {
         const idx = newHistory.indexOf(e);
         if (idx !== -1) newHistory.splice(idx, 1);
       });
+      // Use date from the first new episode in this season, or today as fallback
+      const seasonDate = episodeDateMap.get(`${sn}_${newEps[0]}`) || todayISO();
       newHistory.push({
         season: Number(sn),
         episode: 0,
@@ -489,9 +513,10 @@ function saveEdit(): void {
         episodeCount: totalInSeason,
       });
     } else {
-      // Individual episodes
+      // Individual episodes — each may have its own date from the date picker
       newEps.forEach((ep) => {
-        newHistory.push({ season: Number(sn), episode: ep, watchedAt: seasonDate, type: 'episode' });
+        const epDate = episodeDateMap.get(`${sn}_${ep}`) || todayISO();
+        newHistory.push({ season: Number(sn), episode: ep, watchedAt: epDate, type: 'episode' });
       });
     }
   });
@@ -518,7 +543,7 @@ function saveEdit(): void {
       newHistory.push({
         season: 0,
         episode: 0,
-        watchedAt: watchDate,
+        watchedAt: todayISO(),
         type: 'series',
         episodeCount: seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0),
       });
@@ -1012,24 +1037,31 @@ function setupEventListeners(): void {
 
   // Status popup actions
   document.getElementById('status-popup')?.querySelectorAll<HTMLElement>('[data-set-status]').forEach((btn) => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const id = statusPopupTargetId;
       const newStatus = btn.dataset['setStatus'] as SeriesStatus;
       hideStatusPopup();
       if (!id || !newStatus) return;
       const s = store.getAll().find((x) => x.id === id);
       if (!s) return;
+
+      let watchDate = todayISO();
+      if (newStatus === 'completed') {
+        const date = await promptDate(`Terminée — ${s.name}`);
+        if (date === null) return; // User cancelled
+        watchDate = date;
+      }
+
       const updated = { ...s, status: newStatus };
       if (newStatus === 'completed') {
         markAllEpisodesWatched(updated);
-        const today = todayISO();
         const seasonsData = s.seasonsData || [];
         const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
         const existingHistory = s.watchHistory || [];
         if (!existingHistory.some((h) => h.type === 'series')) {
           updated.watchHistory = [
             ...existingHistory,
-            { season: 0, episode: 0, watchedAt: today, type: 'series' as const, episodeCount: totalEps || (s.episodesTotal ?? undefined) },
+            { season: 0, episode: 0, watchedAt: watchDate, type: 'series' as const, episodeCount: totalEps || (s.episodesTotal ?? undefined) },
           ];
         }
       }
@@ -1263,27 +1295,6 @@ function setupEventListeners(): void {
   // Close mobile drawer on nav-btn click inside drawer
   document.getElementById('mobile-drawer')?.querySelectorAll<HTMLElement>('.nav-btn').forEach((btn) => {
     btn.addEventListener('click', closeMobileDrawer);
-  });
-
-  // Watch date quick buttons
-  document.getElementById('watch-date-today')?.addEventListener('click', () => {
-    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-    if (watchDateEl) watchDateEl.value = todayISO();
-  });
-
-  document.getElementById('watch-date-yesterday')?.addEventListener('click', () => {
-    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-    if (watchDateEl) watchDateEl.value = yesterdayISO();
-  });
-
-  document.getElementById('watch-date-minus2')?.addEventListener('click', () => {
-    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-    if (watchDateEl) watchDateEl.value = daysAgoISO(2);
-  });
-
-  document.getElementById('watch-date-minus7')?.addEventListener('click', () => {
-    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-    if (watchDateEl) watchDateEl.value = daysAgoISO(7);
   });
 
   // Watch history date editing (event delegation on stats-banner)

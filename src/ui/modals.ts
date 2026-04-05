@@ -2,6 +2,7 @@ import { createIcons, icons } from 'lucide';
 import DOMPurify from 'dompurify';
 import { LS_API_KEY, LS_GD_KEY } from '../config/constants';
 import type { TmdbSearchResult } from '../types';
+import { todayISO } from '../utils/formatting';
 
 // ─── FOCUS TRAP ──────────────────────────────
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
@@ -198,4 +199,53 @@ export function openSimilarSeriesModal(
 export function closeSimilarSeriesModal(): void {
   document.getElementById('modal-similar')?.classList.add('hidden');
   releaseFocus();
+}
+
+// ─── DATE PICKER ─────────────────────────────
+export function promptDate(label: string, defaultDate?: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const modal = document.getElementById('date-picker-modal');
+    const labelEl = document.getElementById('date-picker-label');
+    const input = document.getElementById('date-picker-input') as HTMLInputElement | null;
+    const confirmBtn = document.getElementById('date-picker-confirm');
+    const cancelBtn = document.getElementById('date-picker-cancel');
+    if (!modal || !labelEl || !input || !confirmBtn || !cancelBtn) {
+      resolve(defaultDate ?? todayISO());
+      return;
+    }
+
+    labelEl.textContent = label;
+    input.value = defaultDate ?? todayISO();
+    modal.classList.remove('hidden');
+    trapFocus(modal);
+
+    function onConfirm() {
+      cleanup();
+      resolve(input!.value || todayISO());
+    }
+
+    function onCancel() {
+      cleanup();
+      resolve(null);
+    }
+
+    function onKeydown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        onCancel();
+      }
+    }
+
+    function cleanup() {
+      confirmBtn!.removeEventListener('click', onConfirm);
+      cancelBtn!.removeEventListener('click', onCancel);
+      document.removeEventListener('keydown', onKeydown, true);
+      modal!.classList.add('hidden');
+      releaseFocus();
+    }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    document.addEventListener('keydown', onKeydown, true);
+  });
 }
