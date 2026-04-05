@@ -231,6 +231,7 @@ export function promptDate(label: string, defaultDate?: string): Promise<string 
 
     function onKeydown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
+        e.preventDefault();
         e.stopImmediatePropagation();
         onCancel();
       }

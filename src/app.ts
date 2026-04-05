@@ -502,7 +502,8 @@ function saveEdit(): void {
         const idx = newHistory.indexOf(e);
         if (idx !== -1) newHistory.splice(idx, 1);
       });
-      // Use date from the first new episode in this season, or today as fallback
+      // Use date from the first entry in newEps (all episodes in a season share the date
+      // chosen when the season checkbox was checked); fall back to today if not found
       const seasonDate = episodeDateMap.get(`${sn}_${newEps[0]}`) || todayISO();
       newHistory.push({
         season: Number(sn),

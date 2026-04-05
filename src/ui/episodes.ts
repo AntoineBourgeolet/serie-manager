@@ -306,10 +306,7 @@ export function renderEditEpisodesSection(
         const epNum = parseInt(epStr, 10);
         const existingEntry = (s.watchHistory || [])
           .filter(
-            (h) =>
-              ((!h.type || h.type === 'episode') && h.season === snNum && h.episode === epNum) ||
-              (h.type === 'season' && h.season === snNum) ||
-              h.type === 'series'
+            (h) => (!h.type || h.type === 'episode') && h.season === snNum && h.episode === epNum
           )
           .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt))[0];
         const newDate = await promptDate(`Modifier — S${snNum}E${epNum}`, existingEntry?.watchedAt);
