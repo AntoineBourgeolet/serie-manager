@@ -21,7 +21,7 @@ import {
   BACKUP_REMINDER_THRESHOLD,
   BACKUP_REMINDER_DAYS,
 } from './config/constants';
-import { generateId, todayISO, statusLabel } from './utils/formatting';
+import { generateId, todayISO, yesterdayISO, statusLabel } from './utils/formatting';
 import { sanitize } from './utils/validation';
 import { exportToCSV, importCSV, generateCSV } from './utils/csv';
 import { saveToGoogleDrive } from './api/googleDrive';
@@ -805,6 +805,34 @@ function applyTheme(light: boolean): void {
     createIcons({ icons });
   }
   if (themeBtn) themeBtn.title = light ? 'Passer en mode sombre' : 'Passer en mode clair';
+  const mobileThemeIcon = document.getElementById('theme-mobile-icon');
+  if (mobileThemeIcon) {
+    mobileThemeIcon.setAttribute('data-lucide', light ? 'moon' : 'sun');
+    createIcons({ icons });
+  }
+}
+
+// ─── MOBILE DRAWER ───────────────────────────
+function openMobileDrawer(): void {
+  const drawer = document.getElementById('mobile-drawer');
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (drawer) {
+    drawer.classList.remove('hidden');
+    requestAnimationFrame(() => drawer.classList.add('drawer-open'));
+  }
+  if (overlay) overlay.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeMobileDrawer(): void {
+  const drawer = document.getElementById('mobile-drawer');
+  const overlay = document.getElementById('mobile-drawer-overlay');
+  if (drawer) {
+    drawer.classList.remove('drawer-open');
+    drawer.addEventListener('transitionend', () => drawer.classList.add('hidden'), { once: true });
+  }
+  if (overlay) overlay.classList.add('hidden');
+  document.body.style.overflow = '';
 }
 
 
@@ -1149,6 +1177,100 @@ function setupEventListeners(): void {
     }
   });
 
+  // Mobile drawer
+  document.getElementById('mobile-more-btn')?.addEventListener('click', openMobileDrawer);
+  document.getElementById('mobile-drawer-close')?.addEventListener('click', closeMobileDrawer);
+  document.getElementById('mobile-drawer-overlay')?.addEventListener('click', closeMobileDrawer);
+
+  document.getElementById('btn-export-mobile')?.addEventListener('click', () => {
+    exportToCSV(store.getAll());
+    localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+    showToast('Export CSV téléchargé !', 'success');
+    checkBackupReminder();
+    closeMobileDrawer();
+  });
+
+  document.getElementById('btn-export-json-mobile')?.addEventListener('click', () => {
+    exportJSON();
+    closeMobileDrawer();
+  });
+
+  document.getElementById('btn-gdrive-mobile')?.addEventListener('click', () => {
+    closeMobileDrawer();
+    const clientId = localStorage.getItem(LS_GD_KEY) || '';
+    if (!clientId) {
+      openGdSetupModal();
+      return;
+    }
+    const csv = generateCSV(store.getAll());
+    saveToGoogleDrive(
+      clientId,
+      csv,
+      () => {
+        localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+        showToast('CSV sauvegardé sur Google Drive !', 'success');
+        checkBackupReminder();
+      },
+      (msg) => showToast(msg, 'error')
+    );
+  });
+
+  document.getElementById('btn-theme-mobile')?.addEventListener('click', () => {
+    const isLight = document.documentElement.classList.contains('light-mode');
+    applyTheme(!isLight);
+    closeMobileDrawer();
+  });
+
+  document.getElementById('btn-apikey-mobile')?.addEventListener('click', () => {
+    closeMobileDrawer();
+    showApiKeyModal();
+  });
+
+  document.getElementById('btn-settings-mobile')?.addEventListener('click', () => {
+    closeMobileDrawer();
+    openSettingsModal();
+  });
+
+  document.getElementById('csv-import-input-mobile')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) {
+      importCSV(
+        file,
+        (series) => {
+          series.forEach((s) => store.add(s));
+          updateUI();
+          showToast(`${series.length} série(s) importée(s).`, 'success');
+        },
+        (msg) => showToast(msg, 'error')
+      );
+    }
+    (e.target as HTMLInputElement).value = '';
+    closeMobileDrawer();
+  });
+
+  document.getElementById('json-import-input-mobile')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) importJSON(file);
+    (e.target as HTMLInputElement).value = '';
+    closeMobileDrawer();
+  });
+
+  // Close mobile drawer on nav-btn click inside drawer
+  document.getElementById('mobile-drawer')?.querySelectorAll<HTMLElement>('.nav-btn').forEach((btn) => {
+    btn.addEventListener('click', closeMobileDrawer);
+  });
+
+  // Watch date quick buttons
+  document.getElementById('watch-date-today')?.addEventListener('click', () => {
+    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+    if (watchDateEl) watchDateEl.value = todayISO();
+  });
+
+  document.getElementById('watch-date-yesterday')?.addEventListener('click', () => {
+    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+    if (watchDateEl) watchDateEl.value = yesterdayISO();
+  });
+
   // Keyboard shortcuts (global)
   document.addEventListener('keydown', (e) => {
     const tag = (document.activeElement as HTMLElement)?.tagName;
@@ -1162,6 +1284,7 @@ function setupEventListeners(): void {
       closeHelpModal();
       closeSimilarSeriesModal();
       closeSettingsModal();
+      closeMobileDrawer();
       hideStatusPopup();
       if (hasTmdbKey()) closeApiKeyModal();
       if (bulkMode) exitBulkMode();
