@@ -47,6 +47,17 @@
     }
     @media (min-width: 768px) {
       #mobile-bottom-nav { display: none; }
+      #mobile-drawer { display: none !important; }
+      #mobile-drawer-overlay { display: none !important; }
+    }
+
+    /* Mobile drawer slide-up animation */
+    #mobile-drawer {
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+    }
+    #mobile-drawer.drawer-open {
+      transform: translateY(0);
     }
 
     /* Light mode overrides */
@@ -355,8 +366,74 @@
     </div>
   </aside>
 
+  <!-- MOBILE DRAWER OVERLAY -->
+  <div id="mobile-drawer-overlay" class="hidden fixed inset-0 z-40 bg-black/60" aria-hidden="true"></div>
+
+  <!-- MOBILE DRAWER -->
+  <div id="mobile-drawer" class="hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-card border-t border-surface-border rounded-t-2xl shadow-2xl max-h-[80vh] overflow-y-auto" role="dialog" aria-modal="true" aria-label="Menu">
+    <div class="flex items-center justify-between px-4 py-3 border-b border-surface-border">
+      <span class="text-sm font-semibold">Menu</span>
+      <button id="mobile-drawer-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors text-zinc-400" aria-label="Fermer le menu">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+    <div class="px-3 py-2">
+      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Filtres</p>
+      <div class="space-y-0.5">
+        <button data-filter="on-hold" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="pause-circle" class="w-4 h-4 shrink-0"></i> En pause
+        </button>
+        <button data-filter="waiting-platform" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="clock-3" class="w-4 h-4 shrink-0"></i> En attente
+        </button>
+        <button data-filter="abandoned" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="x-circle" class="w-4 h-4 shrink-0"></i> Abandonn&eacute;
+        </button>
+        <button data-filter="favourites" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white">
+          <i data-lucide="star" class="w-4 h-4 shrink-0"></i> Favoris
+        </button>
+      </div>
+    </div>
+    <div class="px-3 py-2 border-t border-surface-border">
+      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Import / Export</p>
+      <div class="space-y-0.5">
+        <label class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="upload" class="w-4 h-4 shrink-0"></i> Importer CSV
+          <input id="csv-import-input-mobile" type="file" accept=".csv" class="hidden" />
+        </label>
+        <label class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="file-json" class="w-4 h-4 shrink-0"></i> Importer JSON
+          <input id="json-import-input-mobile" type="file" accept=".json" class="hidden" />
+        </label>
+        <button id="btn-export-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="download" class="w-4 h-4 shrink-0"></i> Exporter CSV
+        </button>
+        <button id="btn-export-json-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="file-json" class="w-4 h-4 shrink-0"></i> Exporter JSON
+        </button>
+        <button id="btn-gdrive-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="cloud-upload" class="w-4 h-4 shrink-0"></i> Sauvegarder sur Drive
+        </button>
+      </div>
+    </div>
+    <div class="px-3 py-2 border-t border-surface-border pb-4">
+      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">R&eacute;glages</p>
+      <div class="space-y-0.5">
+        <button id="btn-theme-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="sun" class="w-4 h-4 shrink-0" id="theme-mobile-icon"></i> Th&egrave;me
+        </button>
+        <button id="btn-apikey-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="key" class="w-4 h-4 shrink-0"></i> Cl&eacute; API TMDB
+        </button>
+        <button id="btn-settings-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="settings" class="w-4 h-4 shrink-0"></i> Param&egrave;tres
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- MOBILE BOTTOM NAV -->
-  <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-30 bg-surface-card border-t border-surface-border px-1 py-1 gap-1 justify-around overflow-x-auto">
+  <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-30 bg-surface-card border-t border-surface-border px-1 py-1 gap-1 justify-around">
     <button data-filter="all" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors bg-brand text-white shrink-0">
       <i data-lucide="layout-grid" class="w-5 h-5"></i><span>Tout</span>
     </button>
@@ -369,11 +446,11 @@
     <button data-filter="watchlist" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
       <i data-lucide="bookmark" class="w-5 h-5"></i><span>Watchlist</span>
     </button>
-    <button data-filter="abandoned" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
-      <i data-lucide="x-circle" class="w-5 h-5"></i><span>Abandon.</span>
-    </button>
     <button data-filter="stats" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
       <i data-lucide="bar-chart-2" class="w-5 h-5"></i><span>Stats</span>
+    </button>
+    <button id="mobile-more-btn" class="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="menu" class="w-5 h-5"></i><span>Plus</span>
     </button>
   </nav>
 
@@ -542,8 +619,12 @@
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage des &eacute;pisodes</label>
           <p class="text-xs text-zinc-500 mt-0.5 mb-1">Utilis&eacute;e pour les &eacute;pisodes coch&eacute;s dans cette session</p>
-          <input id="edit-watch-date" type="date"
-            class="w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+          <div class="flex items-center gap-2">
+            <input id="edit-watch-date" type="date"
+              class="flex-1 bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+            <button id="watch-date-today" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Aujourd'hui">Auj.</button>
+            <button id="watch-date-yesterday" type="button" class="shrink-0 px-2.5 py-2 rounded-lg text-xs font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300" title="Hier">Hier</button>
+          </div>
         </div>
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Notes personnelles</label>
