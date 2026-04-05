@@ -46,6 +46,42 @@ export class TmdbClient {
     }
   }
 
+  async getPopularSeries(): Promise<TmdbSearchResult[]> {
+    try {
+      const data = await this.fetchJson<{ results: TmdbSearchResult[] }>(
+        this.buildUrl('/tv/popular')
+      );
+      return data.results || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getRecommendationsForIds(tmdbIds: number[]): Promise<TmdbSearchResult[]> {
+    if (!tmdbIds.length) return [];
+    try {
+      const results = await Promise.all(
+        tmdbIds.slice(0, 3).map((id) =>
+          this.fetchJson<{ results: TmdbSearchResult[] }>(
+            this.buildUrl(`/tv/${id}/recommendations`)
+          ).then((d) => d.results || []).catch(() => [] as TmdbSearchResult[])
+        )
+      );
+      // Deduplicate by id
+      const seen = new Set<number>();
+      const merged: TmdbSearchResult[] = [];
+      results.flat().forEach((r) => {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          merged.push(r);
+        }
+      });
+      return merged;
+    } catch {
+      return [];
+    }
+  }
+
   async validateKey(): Promise<boolean> {
     const resp = await fetch(this.buildUrl('/configuration'));
     return resp.ok;

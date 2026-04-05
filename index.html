@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Series Tracker</title>
+  <title>Serie Manager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   <script>
@@ -16,7 +16,7 @@
     };
   </script>
   <style>
-    body { background-color: #18181b; }
+    body { background-color: #18181b; color: #f4f4f5; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: #27272a; }
     ::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 4px; }
@@ -43,15 +43,15 @@
     @media (max-width: 767px) {
       #sidebar { display: none; }
       #mobile-bottom-nav { display: flex; }
-      main { padding-bottom: 4.5rem; }
+      main { padding-bottom: 5rem; }
     }
     @media (min-width: 768px) {
       #mobile-bottom-nav { display: none; }
     }
 
     /* Light mode overrides */
-    .light-mode body { background-color: #f4f4f5 !important; }
-    .light-mode { background-color: #f4f4f5; }
+    .light-mode body { background-color: #f4f4f5 !important; color: #18181b !important; }
+    .light-mode { background-color: #f4f4f5; color: #18181b; }
     .light-mode .bg-surface { background-color: #f4f4f5 !important; }
     .light-mode .bg-surface-card { background-color: #ffffff !important; }
     .light-mode .border-surface-border { border-color: #d4d4d8 !important; }
@@ -61,15 +61,56 @@
     .light-mode .text-zinc-400 { color: #52525b !important; }
     .light-mode .text-zinc-500 { color: #71717a !important; }
     .light-mode .text-zinc-600 { color: #a1a1aa !important; }
+    .light-mode .text-zinc-700 { color: #71717a !important; }
     .light-mode .bg-zinc-700 { background-color: #e4e4e7 !important; }
-    .light-mode .bg-zinc-800 { background-color: #f0f0f0 !important; }
+    .light-mode .bg-zinc-800 { background-color: #f0f0f1 !important; }
+    .light-mode .bg-zinc-900 { background-color: #e4e4e7 !important; }
     .light-mode .hover\:bg-zinc-600:hover { background-color: #d4d4d8 !important; }
+    .light-mode .hover\:bg-zinc-700:hover { background-color: #e4e4e7 !important; }
     .light-mode .hover\:bg-surface-border:hover { background-color: #e4e4e7 !important; }
+    .light-mode .border-zinc-700 { border-color: #d4d4d8 !important; }
     .light-mode ::-webkit-scrollbar-track { background: #e4e4e7; }
     .light-mode .suggestion-item:hover { background-color: #e4e4e7; }
+    .light-mode .modal-backdrop { background: rgba(255,255,255,0.1); }
+    .light-mode .bg-black\/80 { background-color: rgba(0,0,0,0.5) !important; }
+    .light-mode .bg-black\/60 { background-color: rgba(0,0,0,0.4) !important; }
+    .light-mode input, .light-mode textarea, .light-mode select {
+      background-color: #ffffff !important;
+      color: #18181b !important;
+      border-color: #d4d4d8 !important;
+    }
+    .light-mode .bg-surface\/90 { background-color: rgba(244,244,245,0.9) !important; }
+    .light-mode .bg-indigo-900\/30 { background-color: rgba(99,102,241,0.1) !important; }
+    .light-mode .bg-yellow-900\/40 { background-color: rgba(234,179,8,0.1) !important; }
+    .light-mode .bg-red-900\/40 { background-color: rgba(239,68,68,0.1) !important; }
+    .light-mode .text-zinc-200 strong { color: #18181b !important; }
+    .light-mode .bg-brand\/10 { background-color: rgba(99,102,241,0.1) !important; }
   </style>
 </head>
-<body class="dark min-h-screen text-zinc-100 flex">
+<body class="min-h-screen flex">
+
+  <!-- STATUS CHANGE POPUP -->
+  <div id="status-popup" class="hidden fixed z-[200] bg-surface-card border border-surface-border rounded-xl p-1.5 shadow-2xl min-w-[190px]" style="top:0;left:0">
+    <button data-set-status="watching" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-blue-400">
+      <span class="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span> En cours
+    </button>
+    <button data-set-status="completed" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-green-400">
+      <span class="w-2 h-2 rounded-full bg-green-400 shrink-0"></span> Termin&eacute;
+    </button>
+    <button data-set-status="watchlist" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-yellow-400">
+      <span class="w-2 h-2 rounded-full bg-yellow-400 shrink-0"></span> Watchlist
+    </button>
+    <div class="my-1 border-t border-surface-border"></div>
+    <button data-set-status="abandoned" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-red-400">
+      <span class="w-2 h-2 rounded-full bg-red-400 shrink-0"></span> Abandonn&eacute;
+    </button>
+    <button data-set-status="on-hold" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-orange-400">
+      <span class="w-2 h-2 rounded-full bg-orange-400 shrink-0"></span> En pause
+    </button>
+    <button data-set-status="waiting-platform" class="w-full flex items-center gap-2 px-3 py-2 text-xs rounded-lg hover:bg-surface-border transition-colors text-purple-400">
+      <span class="w-2 h-2 rounded-full bg-purple-400 shrink-0"></span> En attente plateforme
+    </button>
+  </div>
 
   <!-- TMDB API KEY SETUP MODAL -->
   <div id="modal-apikey" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-backdrop bg-black/80">
@@ -85,7 +126,7 @@
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-      <p class="text-sm text-zinc-400">SeriesTracker utilise l&#39;API TMDB pour rechercher des s&eacute;ries. Entrez votre propre cl&eacute; API gratuite.</p>
+      <p class="text-sm text-zinc-400">Serie Manager utilise l'API TMDB pour rechercher des s&eacute;ries. Entrez votre propre cl&eacute; API gratuite.</p>
       <ol class="text-sm text-zinc-400 space-y-1.5 list-decimal list-inside">
         <li>Cr&eacute;ez un compte sur <a href="https://www.themoviedb.org/signup" target="_blank" rel="noopener" class="text-brand hover:underline">themoviedb.org</a></li>
         <li>Allez dans <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener" class="text-brand hover:underline">Param&egrave;tres &rarr; API</a></li>
@@ -96,7 +137,7 @@
         <input id="apikey-input" type="password" placeholder="Entrez votre cl&eacute; API&hellip;"
           class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
-      <p class="text-xs text-zinc-600">Votre cl&eacute; est stock&eacute;e uniquement dans votre navigateur et n&#39;est jamais envoy&eacute;e &agrave; des tiers.</p>
+      <p class="text-xs text-zinc-600">Votre cl&eacute; est stock&eacute;e uniquement dans votre navigateur et n'est jamais envoy&eacute;e &agrave; des tiers.</p>
       <p id="apikey-error" class="hidden text-red-400 text-xs"></p>
       <button id="apikey-save" class="w-full px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
         Valider et continuer
@@ -118,10 +159,10 @@
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
       </div>
-      <p class="text-sm text-zinc-400">Pour sauvegarder votre CSV sur Google Drive, vous avez besoin d&#39;un identifiant client OAuth 2.0 Google.</p>
+      <p class="text-sm text-zinc-400">Pour sauvegarder votre CSV sur Google Drive, vous avez besoin d'un identifiant client OAuth 2.0 Google.</p>
       <ol class="text-sm text-zinc-400 space-y-1.5 list-decimal list-inside">
         <li>Ouvrez <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener" class="text-brand hover:underline">Google Cloud Console &rarr; Credentials</a></li>
-        <li>Cr&eacute;ez un projet, activez l&#39;<strong class="text-zinc-300">API Google Drive</strong></li>
+        <li>Cr&eacute;ez un projet, activez l'<strong class="text-zinc-300">API Google Drive</strong></li>
         <li>Cr&eacute;ez des identifiants : <strong class="text-zinc-300">OAuth 2.0 &rarr; Application Web</strong></li>
         <li>Ajoutez <code id="current-origin" class="text-zinc-300 bg-zinc-700 px-1 py-0.5 rounded text-xs"></code> dans les origines JavaScript autoris&eacute;es</li>
         <li>Copiez votre <strong class="text-zinc-300">Client ID</strong></li>
@@ -212,7 +253,7 @@
           <div class="w-10 h-10 rounded-lg bg-zinc-700 flex items-center justify-center shrink-0">
             <i data-lucide="settings" class="w-5 h-5 text-zinc-300"></i>
           </div>
-          <h3 class="text-lg font-semibold">Paramètres</h3>
+          <h3 class="text-lg font-semibold">Param&egrave;tres</h3>
         </div>
         <button id="settings-modal-close" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -221,7 +262,7 @@
       <div class="space-y-4">
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Sauvegarde automatique CSV</label>
-          <p class="text-xs text-zinc-500 mt-0.5 mb-2">Intervalle en minutes (0 = désactivé)</p>
+          <p class="text-xs text-zinc-500 mt-0.5 mb-2">Intervalle en minutes (0 = d&eacute;sactiv&eacute;)</p>
           <div class="flex items-center gap-3">
             <input id="settings-backup-interval" type="number" min="0" max="1440" step="1"
               placeholder="0"
@@ -244,30 +285,44 @@
         <div class="w-8 h-8 rounded-lg bg-brand flex items-center justify-center shrink-0">
           <i data-lucide="tv-2" class="w-4 h-4 text-white"></i>
         </div>
-        <span class="sidebar-logo-text text-lg font-bold tracking-tight truncate">SeriesTracker</span>
+        <span class="sidebar-logo-text text-lg font-bold tracking-tight truncate">Serie Manager</span>
       </div>
-      <button id="sidebar-toggle" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0" title="Réduire le menu" aria-label="Réduire le menu">
+      <button id="sidebar-toggle" class="p-1.5 rounded-lg hover:bg-surface-border transition-colors shrink-0" title="R&eacute;duire le menu" aria-label="R&eacute;duire le menu">
         <i data-lucide="panel-left-close" class="w-4 h-4"></i>
       </button>
     </div>
     <nav class="px-3 py-4 flex-1 sidebar-actions">
       <p class="sidebar-section-label text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Biblioth&egrave;que</p>
       <ul id="sidebar-nav" class="space-y-1">
-        <li><button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white" title="Toutes les séries">
+        <li><button data-filter="all" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors bg-brand text-white" title="Toutes les s&eacute;ries">
           <i data-lucide="layout-grid" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Toutes les s&eacute;ries</span>
         </button></li>
         <li><button data-filter="watching" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="En cours">
           <i data-lucide="play-circle" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">En cours</span>
         </button></li>
-        <li><button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Terminé">
+        <li><button data-filter="completed" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Termin&eacute;">
           <i data-lucide="check-circle-2" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Termin&eacute;</span>
         </button></li>
         <li><button data-filter="watchlist" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Watchlist">
           <i data-lucide="bookmark" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Watchlist</span>
         </button></li>
+        <li><button data-filter="abandoned" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Abandonn&eacute;">
+          <i data-lucide="x-circle" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Abandonn&eacute;</span>
+        </button></li>
+        <li><button data-filter="on-hold" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="En pause">
+          <i data-lucide="pause-circle" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">En pause</span>
+        </button></li>
+        <li><button data-filter="waiting-platform" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="En attente">
+          <i data-lucide="clock-3" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">En attente</span>
+        </button></li>
         <li><button data-filter="favourites" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Favoris">
           <i data-lucide="star" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Favoris</span>
         </button></li>
+        <li class="pt-1 border-t border-surface-border mt-1">
+          <button data-filter="stats" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors text-zinc-400 hover:bg-surface-border hover:text-white" title="Statistiques">
+            <i data-lucide="bar-chart-2" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Statistiques</span>
+          </button>
+        </li>
       </ul>
     </nav>
     <div class="px-3 py-4 border-t border-surface-border space-y-2 sidebar-actions">
@@ -275,8 +330,15 @@
         <i data-lucide="upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Importer CSV</span>
         <input id="csv-import-input" type="file" accept=".csv" class="hidden" />
       </label>
+      <label class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium cursor-pointer bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Importer JSON">
+        <i data-lucide="file-json" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Importer JSON</span>
+        <input id="json-import-input" type="file" accept=".json" class="hidden" />
+      </label>
       <button id="btn-export" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Exporter CSV">
         <i data-lucide="download" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Exporter CSV</span>
+      </button>
+      <button id="btn-export-json" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Exporter JSON">
+        <i data-lucide="file-json" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Exporter JSON</span>
       </button>
       <button id="btn-gdrive" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-700 hover:bg-zinc-600 transition-colors" title="Sauvegarder sur Drive">
         <i data-lucide="cloud-upload" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Sauvegarder sur Drive</span>
@@ -284,49 +346,54 @@
       <button id="btn-theme" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-400" title="Passer en mode clair">
         <i data-lucide="sun" class="w-4 h-4 shrink-0"></i> <span class="sidebar-label">Th&egrave;me</span>
       </button>
-      <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Clé API TMDB">
+      <button id="btn-apikey" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Cl&eacute; API TMDB">
         <i data-lucide="key" class="w-3.5 h-3.5 shrink-0"></i> <span class="sidebar-label">Cl&eacute; API TMDB</span>
       </button>
-      <button id="btn-settings" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Paramètres">
+      <button id="btn-settings" class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-zinc-800 hover:bg-zinc-700 transition-colors text-zinc-500" title="Param&egrave;tres">
         <i data-lucide="settings" class="w-3.5 h-3.5 shrink-0"></i> <span class="sidebar-label">Param&egrave;tres</span>
       </button>
     </div>
   </aside>
 
   <!-- MOBILE BOTTOM NAV -->
-  <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-30 bg-surface-card border-t border-surface-border px-2 py-2 gap-1 justify-around">
-    <button data-filter="all" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors bg-brand text-white">
-      <i data-lucide="layout-grid" class="w-5 h-5"></i>
-      <span>Tout</span>
+  <nav id="mobile-bottom-nav" class="fixed bottom-0 left-0 right-0 z-30 bg-surface-card border-t border-surface-border px-1 py-1 gap-1 justify-around overflow-x-auto">
+    <button data-filter="all" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors bg-brand text-white shrink-0">
+      <i data-lucide="layout-grid" class="w-5 h-5"></i><span>Tout</span>
     </button>
-    <button data-filter="watching" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
-      <i data-lucide="play-circle" class="w-5 h-5"></i>
-      <span>En cours</span>
+    <button data-filter="watching" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="play-circle" class="w-5 h-5"></i><span>En cours</span>
     </button>
-    <button data-filter="completed" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
-      <i data-lucide="check-circle-2" class="w-5 h-5"></i>
-      <span>Terminé</span>
+    <button data-filter="completed" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="check-circle-2" class="w-5 h-5"></i><span>Termin&eacute;</span>
     </button>
-    <button data-filter="watchlist" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
-      <i data-lucide="bookmark" class="w-5 h-5"></i>
-      <span>Watchlist</span>
+    <button data-filter="watchlist" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="bookmark" class="w-5 h-5"></i><span>Watchlist</span>
     </button>
-    <button data-filter="favourites" class="nav-btn flex flex-col items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400">
-      <i data-lucide="star" class="w-5 h-5"></i>
-      <span>Favoris</span>
+    <button data-filter="abandoned" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="x-circle" class="w-5 h-5"></i><span>Abandon.</span>
+    </button>
+    <button data-filter="stats" class="nav-btn flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-colors text-zinc-400 shrink-0">
+      <i data-lucide="bar-chart-2" class="w-5 h-5"></i><span>Stats</span>
     </button>
   </nav>
 
   <!-- MAIN CONTENT -->
   <main class="flex-1 flex flex-col min-h-screen overflow-y-auto">
-  <!-- aria-live region for screen readers -->
   <span id="results-live" class="sr-only" aria-live="polite" aria-atomic="true"></span>
 
     <!-- DATA INTEGRITY ERROR BANNER -->
     <div id="data-error-banner" class="hidden bg-red-900/40 border-b border-red-700/40 px-6 py-2.5 flex items-center gap-3 text-sm text-red-300">
       <i data-lucide="alert-triangle" class="w-4 h-4 shrink-0 text-red-400"></i>
-      <span class="flex-1">Vos donn&eacute;es locales semblent corrompues et ont &eacute;t&eacute; r&eacute;initialis&eacute;es. Veuillez importer votre dernier backup CSV.</span>
+      <span class="flex-1">Vos donn&eacute;es locales semblent corrompues et ont &eacute;t&eacute; r&eacute;initialis&eacute;es. Veuillez importer votre dernier backup.</span>
       <button id="data-error-dismiss" class="text-xs underline hover:no-underline shrink-0">Ignorer</button>
+    </div>
+
+    <!-- IDB MIGRATION BANNER -->
+    <div id="idb-migration-banner" class="hidden bg-indigo-900/30 border-b border-indigo-700/30 px-6 py-2.5 flex items-center gap-3 text-sm text-indigo-300">
+      <i data-lucide="database" class="w-4 h-4 shrink-0 text-indigo-400"></i>
+      <span class="flex-1">Migrez vos donn&eacute;es vers <strong>IndexedDB</strong> pour un stockage local plus robuste et sans limite de taille.</span>
+      <button id="idb-migrate-btn" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors shrink-0">Migrer</button>
+      <button id="idb-migrate-dismiss" class="text-xs underline hover:no-underline shrink-0 ml-1">Plus tard</button>
     </div>
 
     <!-- BACKUP REMINDER BANNER -->
@@ -342,7 +409,6 @@
         <input id="search-input" type="text" placeholder="Rechercher une s&eacute;rie&hellip;"
           class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
-      <!-- Sort dropdown -->
       <select id="sort-select" class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors text-zinc-300" aria-label="Trier par">
         <option value="recent">R&eacute;cent</option>
         <option value="name-asc">A &rarr; Z</option>
@@ -350,7 +416,6 @@
         <option value="rating-desc">Note &darr;</option>
         <option value="rating-asc">Note &uarr;</option>
       </select>
-      <!-- View toggle -->
       <div class="flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
         <button id="btn-view-grid" class="p-1.5 rounded-md transition-colors text-brand" title="Vue grille" aria-label="Vue grille">
           <i data-lucide="layout-grid" class="w-4 h-4"></i>
@@ -359,11 +424,9 @@
           <i data-lucide="list" class="w-4 h-4"></i>
         </button>
       </div>
-      <!-- Bulk select toggle -->
       <button id="btn-bulk-select" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
         <i data-lucide="check-square" class="w-4 h-4"></i>
       </button>
-      <!-- Help button -->
       <button id="btn-help" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
         <i data-lucide="keyboard" class="w-4 h-4"></i>
       </button>
@@ -384,7 +447,8 @@
       </div>
     </div>
 
-    <div class="px-4 py-6 space-y-6">
+    <!-- SERIES VIEW -->
+    <div id="view-series" class="px-4 py-6 space-y-6">
       <div id="toast-area" class="fixed bottom-6 right-6 z-50 space-y-2"></div>
       <div>
         <div class="flex items-center justify-between mb-4">
@@ -402,17 +466,19 @@
             </button>
           </div>
         </div>
-      </div>
-      <!-- STATS SECTION (collapsible on PC) -->
-      <div id="stats-section" class="space-y-3">
-        <button id="stats-toggle" class="hidden md:flex items-center gap-2 text-xs text-zinc-500 uppercase tracking-wider font-semibold hover:text-zinc-300 transition-colors w-full" aria-expanded="true">
-          <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>
-          <span id="stats-toggle-label">Statistiques</span>
-          <i data-lucide="chevron-up" id="stats-toggle-chevron" class="w-3.5 h-3.5 ml-auto transition-transform duration-200"></i>
-        </button>
-        <div id="stats-banner" class="space-y-3"></div>
+        <!-- Watchlist suggestions -->
+        <div id="watchlist-suggestions" class="hidden"></div>
       </div>
     </div>
+
+    <!-- STATS VIEW -->
+    <div id="view-stats" class="hidden px-4 py-6 space-y-3">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-lg font-semibold">Statistiques</h2>
+      </div>
+      <div id="stats-banner" class="space-y-3"></div>
+    </div>
+
   </main>
 
   <!-- ADD SERIES MODAL -->
@@ -458,6 +524,9 @@
             <option value="watchlist">Watchlist</option>
             <option value="watching">En cours</option>
             <option value="completed">Termin&eacute;</option>
+            <option value="abandoned">Abandonn&eacute;</option>
+            <option value="on-hold">En pause</option>
+            <option value="waiting-platform">En attente de plateforme</option>
           </select>
         </div>
         <div>
@@ -466,9 +535,15 @@
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage</label>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de d&eacute;but de visionnage</label>
           <input id="edit-viewing-date" type="date"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
+        </div>
+        <div>
+          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de visionnage des &eacute;pisodes</label>
+          <p class="text-xs text-zinc-500 mt-0.5 mb-1">Utilis&eacute;e pour les &eacute;pisodes coch&eacute;s dans cette session</p>
+          <input id="edit-watch-date" type="date"
+            class="w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
           <label class="text-xs text-zinc-400 uppercase tracking-wider">Notes personnelles</label>

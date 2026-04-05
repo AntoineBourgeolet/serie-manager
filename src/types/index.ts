@@ -1,4 +1,4 @@
-export type SeriesStatus = 'watchlist' | 'watching' | 'completed';
+export type SeriesStatus = 'watchlist' | 'watching' | 'completed' | 'abandoned' | 'on-hold' | 'waiting-platform';
 
 export interface SeasonData {
   season_number: number;
@@ -100,12 +100,21 @@ export interface AppStats {
   countWatching: number;
   countCompleted: number;
   countWatchlist: number;
+  countAbandoned: number;
+  countOnHold: number;
+  countWaitingPlatform: number;
   epWatching: number;
   epCompleted: number;
   epWatchlist: number;
+  epAbandoned: number;
+  epOnHold: number;
+  epWaitingPlatform: number;
   epTotal: number;
   minWatching: number;
   minCompleted: number;
   minWatchlist: number;
+  minAbandoned: number;
+  minOnHold: number;
+  minWaitingPlatform: number;
   minTotal: number;
 }

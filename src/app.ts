@@ -11,14 +11,17 @@ import {
   LS_THEME,
   LS_STATS_COLLAPSED,
   LS_SETTINGS,
+  LS_IDB_MIGRATED,
   TMDB_BASE,
   TMDB_SEARCH_DEBOUNCE_MS,
   TMDB_SUGGESTIONS_LIMIT,
+  WATCHLIST_SUGGESTIONS_LIMIT,
+  MAX_RECOMMENDATION_SEED_SERIES,
   IMG_BASE,
   BACKUP_REMINDER_THRESHOLD,
   BACKUP_REMINDER_DAYS,
 } from './config/constants';
-import { generateId, todayISO, statusLabel, nextStatus } from './utils/formatting';
+import { generateId, todayISO, statusLabel } from './utils/formatting';
 import { sanitize } from './utils/validation';
 import { exportToCSV, importCSV, generateCSV } from './utils/csv';
 import { saveToGoogleDrive } from './api/googleDrive';
@@ -46,12 +49,13 @@ import {
   markAllEpisodesWatched,
   updateCurrentSeasonFromWatched,
 } from './ui/episodes';
-import type { TmdbSearchResult, WatchHistoryEntry } from './types';
+import type { SeriesStatus, TmdbSearchResult, WatchHistoryEntry } from './types';
 
 // ─── STATE ───────────────────────────────────
 const store = new SeriesStore();
 let tmdbClient = new TmdbClient(localStorage.getItem(LS_API_KEY) || '');
 let activeFilter = 'all';
+let activeView: 'series' | 'stats' = 'series';
 let searchQuery = '';
 let editingId: string | null = null;
 let searchDebounce: ReturnType<typeof setTimeout> | null = null;
@@ -61,6 +65,7 @@ let sortBy: SortOption = (localStorage.getItem(LS_SORT_PREF) as SortOption) || '
 let bulkMode = false;
 const selectedIds = new Set<string>();
 let statsCollapsed: boolean = localStorage.getItem(LS_STATS_COLLAPSED) === 'true';
+let statusPopupTargetId: string | null = null;
 
 // ─── APP SETTINGS ────────────────────────────
 interface AppSettings {
@@ -83,7 +88,15 @@ function saveSettings(s: AppSettings): void {
 const appSettings: AppSettings = loadSettings();
 let autoBackupTimer: ReturnType<typeof setInterval> | null = null;
 
-// ─── UI UPDATE ───────────────────────────────
+// ─── VIEW MANAGEMENT ─────────────────────────
+function applyView(): void {
+  const seriesView = document.getElementById('view-series');
+  const statsView = document.getElementById('view-stats');
+  if (seriesView) seriesView.classList.toggle('hidden', activeView !== 'series');
+  if (statsView) statsView.classList.toggle('hidden', activeView !== 'stats');
+  if (activeView === 'stats') renderStats(store);
+}
+
 function applyStatsCollapsed(): void {
   const banner = document.getElementById('stats-banner');
   const chevron = document.getElementById('stats-toggle-chevron');
@@ -94,12 +107,121 @@ function applyStatsCollapsed(): void {
 }
 
 function updateUI(): void {
-  renderStats(store);
-  applyStatsCollapsed();
-  renderGrid(store, activeFilter, searchQuery, openEditModal, quickChangeStatus, toggleFavourite, listView, sortBy, bulkMode);
+  if (activeView === 'series') {
+    renderGrid(store, activeFilter, searchQuery, openEditModal, showStatusPopup, toggleFavourite, listView, sortBy, bulkMode);
+    renderWatchlistSuggestions();
+  } else {
+    renderStats(store);
+  }
   renderSidebarCounts(store);
   updateBulkToolbar();
   checkBackupReminder();
+}
+
+// ─── STATUS POPUP ────────────────────────────
+function showStatusPopup(id: string): void {
+  const popup = document.getElementById('status-popup');
+  if (!popup) return;
+  const btn = document.querySelector<HTMLElement>(`[data-status-id="${id}"]`);
+  if (!btn) return;
+  const rect = btn.getBoundingClientRect();
+  const popupWidth = 190;
+  let left = rect.left;
+  if (left + popupWidth > window.innerWidth) left = window.innerWidth - popupWidth - 8;
+  popup.style.top = `${rect.bottom + 6}px`;
+  popup.style.left = `${left}px`;
+  statusPopupTargetId = id;
+  popup.classList.remove('hidden');
+  const s = store.getAll().find((x) => x.id === id);
+  popup.querySelectorAll<HTMLElement>('[data-set-status]').forEach((b) => {
+    b.classList.toggle('ring-1', b.dataset['setStatus'] === s?.status);
+    b.classList.toggle('ring-brand', b.dataset['setStatus'] === s?.status);
+  });
+}
+
+function hideStatusPopup(): void {
+  document.getElementById('status-popup')?.classList.add('hidden');
+  statusPopupTargetId = null;
+}
+
+// ─── WATCHLIST SUGGESTIONS ───────────────────
+async function renderWatchlistSuggestions(): Promise<void> {
+  const suggestSection = document.getElementById('watchlist-suggestions');
+  if (!suggestSection) return;
+  if (activeFilter !== 'watchlist') { suggestSection.classList.add('hidden'); return; }
+  if (!hasTmdbKey()) { suggestSection.classList.add('hidden'); return; }
+  const list = store.getFiltered('watchlist', searchQuery);
+  if (list.length === 0) {
+    suggestSection.classList.remove('hidden');
+    suggestSection.innerHTML = `
+      <div class="py-4 border-t border-surface-border">
+        <div class="flex items-center gap-2 mb-4">
+          <i data-lucide="sparkles" class="w-4 h-4 text-brand"></i>
+          <span class="text-sm font-semibold">Que regarder ?</span>
+          <span class="text-xs text-zinc-500">Séries populaires du moment</span>
+        </div>
+        <div id="suggestions-list" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-3">
+          <div class="col-span-full flex justify-center py-4 text-zinc-500 text-sm">
+            <i data-lucide="loader-2" class="w-4 h-4 animate-spin mr-2"></i> Chargement…
+          </div>
+        </div>
+      </div>`;
+    createIcons({ icons, attrs: { 'stroke-width': '1.5' } });
+    try {
+      const popular = await tmdbClient.getPopularSeries();
+      const alreadyIn = new Set(store.getAll().map((s) => s.tmdbId).filter((id): id is number => id !== null));
+      const filtered = popular.filter((r) => !alreadyIn.has(r.id)).slice(0, WATCHLIST_SUGGESTIONS_LIMIT);
+      const listEl = document.getElementById('suggestions-list');
+      if (!listEl) return;
+      if (!filtered.length) { listEl.innerHTML = '<p class="text-xs text-zinc-500 col-span-full">Aucune suggestion disponible.</p>'; return; }
+      const resultMap: Record<number, TmdbSearchResult> = {};
+      listEl.innerHTML = filtered.map((r) => {
+        resultMap[r.id] = r;
+        const imgSrc = r.poster_path ? IMG_BASE + r.poster_path : `https://placehold.co/120x180/27272a/6366f1?text=${encodeURIComponent(r.name.charAt(0))}`;
+        return `<button class="suggest-add-btn bg-surface-card border border-surface-border rounded-xl overflow-hidden flex flex-col cursor-pointer hover:border-brand/50 transition-colors text-left w-full" data-tmdb-id="${r.id}">
+          <img src="${sanitize(imgSrc)}" alt="${sanitize(r.name)}" class="w-full aspect-[2/3] object-cover" loading="lazy" />
+          <div class="p-2"><p class="text-xs font-medium truncate">${sanitize(r.name)}</p><p class="text-xs text-zinc-500">${r.first_air_date ? sanitize(r.first_air_date.slice(0, 4)) : '–'}</p></div>
+        </button>`;
+      }).join('');
+      listEl.querySelectorAll<HTMLElement>('.suggest-add-btn').forEach((btn) => {
+        btn.addEventListener('click', () => { const id = Number(btn.dataset['tmdbId']); if (resultMap[id]) addSeriesFromTmdb(resultMap[id]); });
+      });
+    } catch {
+      const listEl = document.getElementById('suggestions-list');
+      if (listEl) listEl.innerHTML = '<p class="text-xs text-zinc-500 col-span-full">Impossible de charger les suggestions.</p>';
+    }
+  } else {
+    suggestSection.classList.remove('hidden');
+    suggestSection.innerHTML = `
+      <div class="flex justify-center py-3 border-t border-surface-border">
+        <button id="suggest-more-btn" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-card border border-surface-border hover:border-brand/50 text-sm font-medium transition-colors text-zinc-400 hover:text-zinc-200">
+          <i data-lucide="sparkles" class="w-4 h-4 text-brand"></i>
+          Proposer des séries similaires
+        </button>
+      </div>`;
+    createIcons({ icons, attrs: { 'stroke-width': '1.5' } });
+    document.getElementById('suggest-more-btn')?.addEventListener('click', suggestMoreSeries);
+  }
+}
+
+async function suggestMoreSeries(): Promise<void> {
+  const allSeries = store.getAll();
+  const topRated = allSeries
+    .filter((s) => (s.status === 'completed' || s.status === 'watching') && s.tmdbId)
+    .sort((a, b) => (b.rating ?? b.tmdbRating ?? 0) - (a.rating ?? a.tmdbRating ?? 0))
+    .slice(0, MAX_RECOMMENDATION_SEED_SERIES)
+    .map((s) => s.tmdbId as number);
+  const alreadyIn = new Set(allSeries.map((s) => s.tmdbId).filter((id): id is number => id !== null));
+  try {
+    const results = topRated.length
+      ? await tmdbClient.getRecommendationsForIds(topRated)
+      : await tmdbClient.getPopularSeries();
+    const filtered = results.filter((r) => !alreadyIn.has(r.id));
+    if (!filtered.length) { showToast('Aucune nouvelle suggestion trouvée.', 'info'); return; }
+    openSimilarSeriesModal(filtered, alreadyIn, addSeriesFromTmdb);
+  } catch {
+    showToast('Impossible de charger les suggestions.', 'error');
+  }
 }
 
 // ─── AUTO BACKUP ─────────────────────────────
@@ -224,6 +346,8 @@ function openEditModal(id: string): void {
   if (statusEl) statusEl.value = s.status || 'watchlist';
   if (ratingEl) ratingEl.value = s.rating != null ? String(s.rating) : '';
   if (dateEl) dateEl.value = s.viewingDate || todayISO();
+  const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+  if (watchDateEl) watchDateEl.value = todayISO();
   if (notesEl) notesEl.value = s.notes || '';
   if (tagsEl) tagsEl.value = s.tags ? s.tags.join(', ') : '';
   if (genresEl) {
@@ -262,10 +386,12 @@ function saveEdit(): void {
   const dateEl = document.getElementById('edit-viewing-date') as HTMLInputElement | null;
   const notesEl = document.getElementById('edit-notes') as HTMLTextAreaElement | null;
   const tagsEl = document.getElementById('edit-tags') as HTMLInputElement | null;
-  const newStatus = (statusEl?.value || 'watchlist') as 'watchlist' | 'watching' | 'completed';
+  const newStatus = (statusEl?.value || 'watchlist') as SeriesStatus;
   const r = parseFloat(ratingEl?.value || '');
   const rating = isNaN(r) ? null : Math.min(10, Math.max(0, r));
   const viewingDate = dateEl?.value || '';
+  const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+  const watchDate = watchDateEl?.value || todayISO();
   const notes = notesEl?.value.trim() || undefined;
   const tagsRaw = tagsEl?.value || '';
   const tags = tagsRaw
@@ -300,7 +426,7 @@ function saveEdit(): void {
   }
 
   // Record new watched episodes in watchHistory — grouped by season/series
-  const today = todayISO();
+  const today = watchDate;
   const existingHistory = s.watchHistory || [];
   // Keep existing history for episodes that are still watched
   const retainedHistory = existingHistory.filter((h) => {
@@ -610,38 +736,43 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
   showToast(`"${series.name}" ajoutée à la watchlist !`, 'success');
 }
 
-function quickChangeStatus(id: string): void {
-  const s = store.getAll().find((x) => x.id === id);
-  if (!s) return;
-  const newStatus = nextStatus(s.status);
-  const updated = { ...s, status: newStatus };
-  if (newStatus === 'completed') {
-    markAllEpisodesWatched(updated);
-    // Add a single 'series' history entry for quick-complete
-    const today = todayISO();
-    const seasonsData = s.seasonsData || [];
-    const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
-    const existingHistory = s.watchHistory || [];
-    const hasSeriesEntry = existingHistory.some((h) => h.type === 'series');
-    if (!hasSeriesEntry) {
-      updated.watchHistory = [
-        ...existingHistory,
-        {
-          season: 0,
-          episode: 0,
-          watchedAt: today,
-          type: 'series' as const,
-          episodeCount: totalEps !== 0 ? totalEps : (s.episodesTotal ?? undefined),
-        },
-      ];
+// ─── JSON EXPORT/IMPORT ──────────────────────
+function exportJSON(): void {
+  const data = JSON.stringify(store.getAll(), null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `serie-manager-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
+  showToast('Export JSON téléchargé !', 'success');
+  checkBackupReminder();
+}
+
+function importJSON(file: File): void {
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target?.result as string);
+      if (!Array.isArray(parsed)) throw new Error('Format invalide');
+      let imported = 0;
+      parsed.forEach((s) => {
+        if (s && s.id && s.name && s.status) {
+          if (!store.getAll().some((x) => x.id === s.id)) {
+            store.add(s);
+            imported++;
+          }
+        }
+      });
+      updateUI();
+      showToast(`${imported} série(s) importée(s) depuis JSON.`, 'success');
+    } catch {
+      showToast('Fichier JSON invalide.', 'error');
     }
-  }
-  store.update(id, updated);
-  updateUI();
-  showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
-  if (newStatus === 'completed' && s.tmdbId && hasTmdbKey()) {
-    suggestSimilarSeries(s.tmdbId);
-  }
+  };
+  reader.readAsText(file);
 }
 
 
@@ -694,6 +825,14 @@ function setupEventListeners(): void {
     localStorage.setItem(LS_LAST_EXPORT, String(Date.now()));
     showToast('Export CSV téléchargé !', 'success');
     checkBackupReminder();
+  });
+
+  document.getElementById('btn-export-json')?.addEventListener('click', exportJSON);
+
+  document.getElementById('json-import-input')?.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) importJSON(file);
+    (e.target as HTMLInputElement).value = '';
   });
 
   document.getElementById('btn-gdrive')?.addEventListener('click', () => {
@@ -802,24 +941,79 @@ function setupEventListeners(): void {
 
   document.querySelectorAll<HTMLElement>('.nav-btn').forEach((btn) => {
     btn.addEventListener('click', () => {
-      activeFilter = btn.dataset['filter'] || 'all';
+      const filter = btn.dataset['filter'] || 'all';
       document.querySelectorAll<HTMLElement>('.nav-btn').forEach((b) => {
         b.classList.remove('bg-brand', 'text-white');
         b.classList.add('text-zinc-400', 'hover:bg-surface-border', 'hover:text-white');
       });
       btn.classList.add('bg-brand', 'text-white');
       btn.classList.remove('text-zinc-400', 'hover:bg-surface-border', 'hover:text-white');
+
+      if (filter === 'stats') {
+        activeView = 'stats';
+        const titleEl = document.getElementById('section-title');
+        if (titleEl) titleEl.textContent = 'Statistiques';
+        applyView();
+        renderSidebarCounts(store);
+        return;
+      }
+
+      activeView = 'series';
+      activeFilter = filter;
       const titles: Record<string, string> = {
         all: 'Toutes les séries',
         watching: 'En cours',
         completed: 'Terminées',
         watchlist: 'Watchlist',
         favourites: 'Favoris',
+        abandoned: 'Abandonnées',
+        'on-hold': 'En pause',
+        'waiting-platform': 'En attente de plateforme',
       };
       const titleEl = document.getElementById('section-title');
       if (titleEl) titleEl.textContent = titles[activeFilter] || 'Séries';
       updateUI();
+      applyView();
     });
+  });
+
+  // Status popup actions
+  document.getElementById('status-popup')?.querySelectorAll<HTMLElement>('[data-set-status]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = statusPopupTargetId;
+      const newStatus = btn.dataset['setStatus'] as SeriesStatus;
+      hideStatusPopup();
+      if (!id || !newStatus) return;
+      const s = store.getAll().find((x) => x.id === id);
+      if (!s) return;
+      const updated = { ...s, status: newStatus };
+      if (newStatus === 'completed') {
+        markAllEpisodesWatched(updated);
+        const today = todayISO();
+        const seasonsData = s.seasonsData || [];
+        const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
+        const existingHistory = s.watchHistory || [];
+        if (!existingHistory.some((h) => h.type === 'series')) {
+          updated.watchHistory = [
+            ...existingHistory,
+            { season: 0, episode: 0, watchedAt: today, type: 'series' as const, episodeCount: totalEps || (s.episodesTotal ?? undefined) },
+          ];
+        }
+      }
+      updateCurrentSeasonFromWatched(updated);
+      store.update(id, updated);
+      updateUI();
+      showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
+      if (newStatus === 'completed' && s.tmdbId && hasTmdbKey()) suggestSimilarSeries(s.tmdbId);
+    });
+  });
+
+  // Close status popup on outside click
+  document.addEventListener('click', (e) => {
+    const popup = document.getElementById('status-popup');
+    if (!popup || popup.classList.contains('hidden')) return;
+    const target = e.target as HTMLElement;
+    if (!popup.contains(target) && !target.closest('[data-status-id]')) hideStatusPopup();
   });
 
   document.getElementById('csv-import-input')?.addEventListener('change', (e) => {
@@ -927,6 +1121,22 @@ function setupEventListeners(): void {
     applyStatsCollapsed();
   });
 
+  // IDB migration banner
+  document.getElementById('idb-migrate-btn')?.addEventListener('click', async () => {
+    try {
+      await store.migrateToIDB();
+      localStorage.setItem(LS_IDB_MIGRATED, 'true');
+      document.getElementById('idb-migration-banner')?.classList.add('hidden');
+      showToast('Données migrées vers IndexedDB !', 'success');
+    } catch {
+      showToast('Erreur lors de la migration.', 'error');
+    }
+  });
+  document.getElementById('idb-migrate-dismiss')?.addEventListener('click', () => {
+    localStorage.setItem(LS_IDB_MIGRATED, 'skipped');
+    document.getElementById('idb-migration-banner')?.classList.add('hidden');
+  });
+
   // Sidebar collapse
   document.getElementById('sidebar-toggle')?.addEventListener('click', () => {
     const sidebar = document.getElementById('sidebar');
@@ -952,6 +1162,7 @@ function setupEventListeners(): void {
       closeHelpModal();
       closeSimilarSeriesModal();
       closeSettingsModal();
+      hideStatusPopup();
       if (hasTmdbKey()) closeApiKeyModal();
       if (bulkMode) exitBulkMode();
       return;
@@ -1017,7 +1228,17 @@ const sortSelectEl = document.getElementById('sort-select') as HTMLSelectElement
 if (sortSelectEl) sortSelectEl.value = sortBy;
 
 updateUI();
+applyView();
 if (!hasTmdbKey()) showApiKeyModal();
 
 // Start auto-backup if configured
 setupAutoBackup();
+
+// Try IndexedDB — offer migration if localStorage data exists but IDB is empty
+store.initFromDB().then((hadIdbData) => {
+  if (hadIdbData) {
+    updateUI();
+  } else if (store.hasLocalStorageData() && !localStorage.getItem(LS_IDB_MIGRATED)) {
+    document.getElementById('idb-migration-banner')?.classList.remove('hidden');
+  }
+});
