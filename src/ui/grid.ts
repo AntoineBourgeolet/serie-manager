@@ -127,11 +127,11 @@ export function seriesCard(
           ${networkBadge}
         </div>
         <div class="flex items-center gap-1.5 shrink-0">
-          <button data-fav-id="${s.id}" class="p-1 ${starClass} transition-colors shrink-0" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
-            <i data-lucide="star" class="w-3.5 h-3.5 ${starFill}"></i>
+          <button data-fav-id="${s.id}" class="p-2 min-w-[2.75rem] min-h-[2.75rem] flex items-center justify-center ${starClass} transition-colors shrink-0" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+            <i data-lucide="star" class="w-4 h-4 ${starFill}"></i>
           </button>
           <button data-status-id="${s.id}"
-            class="text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
+            class="text-xs font-medium px-3 py-2 min-h-[2.75rem] rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
             title="Cliquer pour changer le statut">
             ${statusLabel(s.status)}
           </button>
@@ -150,9 +150,9 @@ export function seriesCard(
       <div class="p-2.5 flex flex-col flex-1 min-w-0 gap-1">
         <div class="flex items-start justify-between gap-1">
           <h3 class="font-semibold text-sm leading-tight line-clamp-2">${sanitize(s.name)}</h3>
-          <div class="flex items-center gap-1 shrink-0">
-            <button data-fav-id="${s.id}" class="p-0.5 ${starClass} transition-colors" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
-              <i data-lucide="star" class="w-3.5 h-3.5 ${starFill}"></i>
+          <div class="flex items-center gap-0.5 shrink-0">
+            <button data-fav-id="${s.id}" class="p-1.5 min-w-[2.25rem] min-h-[2.25rem] flex items-center justify-center ${starClass} transition-colors" title="${s.isFavourite ? 'Retirer des favoris' : 'Ajouter aux favoris'}">
+              <i data-lucide="star" class="w-4 h-4 ${starFill}"></i>
             </button>
             <input type="checkbox" class="bulk-checkbox w-4 h-4 rounded" data-bulk-id="${s.id}" aria-label="Sélectionner ${sanitize(s.name)}" />
           </div>
@@ -173,7 +173,7 @@ export function seriesCard(
         ${s.viewingDate ? `<span class="text-xs text-zinc-600">${sanitize(s.viewingDate)}</span>` : ''}
         <div class="mt-auto pt-1">
           <button data-status-id="${s.id}"
-            class="w-full text-xs font-medium px-2 py-1 rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
+            class="w-full text-xs font-medium px-2 py-2 min-h-[2.25rem] rounded-md truncate transition-opacity hover:opacity-70 ${statusColor(s.status)}"
             title="Cliquer pour changer le statut">
             ${statusLabel(s.status)}
           </button>

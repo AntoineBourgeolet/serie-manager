@@ -88,7 +88,7 @@ export function renderEditEpisodesSection(
   if (!seasonsData.length) {
     container.innerHTML = `
       <div class="border-t border-surface-border pt-3">
-        <p class="text-xs text-zinc-400 uppercase tracking-wider mb-3">Épisodes</p>
+        <p class="text-sm font-medium text-zinc-400 mb-3">Épisodes</p>
         <div id="episodes-loading" class="flex items-center justify-center gap-2 py-4 text-zinc-400 text-sm">
           <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-brand"></i>
           Chargement des épisodes…
@@ -104,7 +104,7 @@ export function renderEditEpisodesSection(
   container.innerHTML = `
     <div class="border-t border-surface-border pt-3">
       <div class="flex items-center justify-between mb-3">
-        <p class="text-xs text-zinc-400 uppercase tracking-wider">Épisodes <span class="text-zinc-300 font-medium">${totalWatched}/${totalEps}</span></p>
+        <p class="text-sm font-medium text-zinc-400">Épisodes <span class="text-zinc-300 font-semibold">${totalWatched}/${totalEps}</span></p>
         <button id="refresh-episodes-btn" class="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors">
           <i data-lucide="refresh-cw" class="w-3 h-3"></i> Actualiser
         </button>
@@ -348,7 +348,7 @@ export async function loadEpisodesForEditing(
     if (container) {
       container.innerHTML = `
         <div class="border-t border-surface-border pt-3">
-          <p class="text-xs text-zinc-400 uppercase tracking-wider mb-2">Épisodes</p>
+          <p class="text-sm font-medium text-zinc-400 mb-2">Épisodes</p>
           <p class="text-xs text-red-400 py-2">Erreur lors du chargement des épisodes.</p>
           <button id="retry-episodes-btn" class="text-xs text-zinc-400 hover:text-zinc-200 flex items-center gap-1.5 transition-colors">
             <i data-lucide="refresh-cw" class="w-3 h-3"></i> Réessayer
