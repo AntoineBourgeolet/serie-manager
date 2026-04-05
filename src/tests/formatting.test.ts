@@ -2,12 +2,15 @@ import { describe, it, expect } from 'vitest';
 import {
   generateId,
   todayISO,
+  daysAgoISO,
+  lastUsedWatchDate,
   statusLabel,
   statusColor,
   nextStatus,
   formatTime,
   tryParseJSON,
 } from '../utils/formatting';
+import type { Series } from '../types';
 
 describe('generateId', () => {
   it('returns a non-empty string', () => {
@@ -99,5 +102,73 @@ describe('tryParseJSON', () => {
   it('returns fallback for invalid JSON', () => {
     expect(tryParseJSON('not-json', [])).toEqual([]);
     expect(tryParseJSON('', { default: true })).toEqual({ default: true });
+  });
+});
+
+describe('daysAgoISO', () => {
+  it('returns a valid ISO date string (YYYY-MM-DD)', () => {
+    const result = daysAgoISO(3);
+    expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(new Date(result).toString()).not.toBe('Invalid Date');
+  });
+
+  it('returns today when n is 0', () => {
+    expect(daysAgoISO(0)).toBe(todayISO());
+  });
+
+  it('returns a date strictly before today when n > 0', () => {
+    expect(daysAgoISO(1) < todayISO()).toBe(true);
+    expect(daysAgoISO(7) < daysAgoISO(1)).toBe(true);
+  });
+});
+
+function makeMinimalSeries(overrides: Partial<Series> = {}): Series {
+  return {
+    id: 'test-id',
+    tmdbId: null,
+    name: 'Test',
+    status: 'watching',
+    rating: null,
+    season: 1,
+    totalSeasons: null,
+    year: '2020',
+    poster: '',
+    overview: '',
+    episodesTotal: null,
+    episodeRuntime: null,
+    viewingDate: '2024-01-01',
+    seasonsData: [],
+    watchedEpisodes: {},
+    ...overrides,
+  };
+}
+
+describe('lastUsedWatchDate', () => {
+  it('returns today when series has no watchHistory', () => {
+    const s = makeMinimalSeries();
+    expect(lastUsedWatchDate(s)).toBe(todayISO());
+  });
+
+  it('returns today when watchHistory is empty', () => {
+    const s = makeMinimalSeries({ watchHistory: [] });
+    expect(lastUsedWatchDate(s)).toBe(todayISO());
+  });
+
+  it('returns the most recent watchedAt date from watchHistory', () => {
+    const s = makeMinimalSeries({
+      watchHistory: [
+        { season: 1, episode: 1, watchedAt: '2024-03-01', type: 'episode' },
+        { season: 1, episode: 2, watchedAt: '2024-05-10', type: 'episode' },
+        { season: 1, episode: 3, watchedAt: '2024-04-15', type: 'episode' },
+      ],
+    });
+    expect(lastUsedWatchDate(s)).toBe('2024-05-10');
+  });
+
+  it('returns the only entry date when watchHistory has one entry', () => {
+    const s = makeMinimalSeries({
+      watchHistory: [{ season: 1, episode: 1, watchedAt: '2023-12-25' }],
+    });
+    expect(lastUsedWatchDate(s)).toBe('2023-12-25');
   });
 });

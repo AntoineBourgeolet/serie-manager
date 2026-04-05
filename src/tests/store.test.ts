@@ -89,6 +89,23 @@ describe('SeriesStore', () => {
       store.update('unknown', { name: 'Other' });
       expect(store.getAll()[0].name).toBe('Breaking Bad');
     });
+
+    it('patches a single watchHistory entry without touching others', () => {
+      const s = makeSeries({
+        id: 'wh-test',
+        watchHistory: [
+          { season: 1, episode: 1, watchedAt: '2024-01-01', type: 'episode' },
+          { season: 1, episode: 2, watchedAt: '2024-01-02', type: 'episode' },
+        ],
+      });
+      store.add(s);
+      const history = [...(store.getAll()[0].watchHistory ?? [])];
+      history[0] = { ...history[0], watchedAt: '2024-03-15' };
+      store.update('wh-test', { watchHistory: history });
+      const updated = store.getAll()[0];
+      expect(updated.watchHistory?.[0].watchedAt).toBe('2024-03-15');
+      expect(updated.watchHistory?.[1].watchedAt).toBe('2024-01-02');
+    });
   });
 
   describe('remove', () => {
