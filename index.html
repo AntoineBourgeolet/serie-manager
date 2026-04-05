@@ -96,6 +96,57 @@
     .light-mode .bg-red-900\/40 { background-color: rgba(239,68,68,0.1) !important; }
     .light-mode .text-zinc-200 strong { color: #18181b !important; }
     .light-mode .bg-brand\/10 { background-color: rgba(99,102,241,0.1) !important; }
+
+    /* ── UX improvements ── */
+
+    /* Bottom offset for mobile FAB and toast (above the ~80px bottom nav) */
+    :root { --mobile-bottom-offset: 5.5rem; }
+
+    /* Toast area: above bottom nav on mobile */
+    @media (max-width: 767px) {
+      #toast-area { bottom: var(--mobile-bottom-offset) !important; }
+    }
+
+    /* Dynamic viewport height for edit modal (fallback: 90vh via Tailwind) */
+    @supports (height: 1dvh) {
+      #modal-edit > div { max-height: 90dvh; }
+    }
+
+    /* Content visibility: let browser skip off-screen card rendering */
+    @supports (content-visibility: auto) {
+      #series-grid > * {
+        content-visibility: auto;
+        contain-intrinsic-size: 0 120px;
+      }
+    }
+
+    /* Mobile FAB shadow */
+    #btn-add-fab { box-shadow: 0 4px 16px rgba(99,102,241,0.45); }
+
+    /* Status bottom sheet slide-up */
+    #status-sheet-panel {
+      transform: translateY(100%);
+      transition: transform 0.25s ease;
+    }
+    #status-sheet-panel.sheet-open { transform: translateY(0); }
+
+    /* Mobile bottom nav active: icon-only style with top accent */
+    #mobile-bottom-nav { position: relative; }
+    #mobile-bottom-nav .nav-btn { position: relative; }
+    #mobile-bottom-nav .nav-btn.bg-brand {
+      background: none !important;
+      color: rgb(99 102 241) !important;
+    }
+    #mobile-bottom-nav .nav-btn.bg-brand::after {
+      content: '';
+      position: absolute;
+      top: -0.25rem;
+      left: 20%;
+      right: 20%;
+      height: 2px;
+      background: rgb(99 102 241);
+      border-radius: 0 0 2px 2px;
+    }
   </style>
 </head>
 <body class="min-h-screen flex">
@@ -144,7 +195,7 @@
         <li>Copiez votre <strong class="text-zinc-300">cl&eacute; API (v3 auth)</strong></li>
       </ol>
       <div>
-        <label class="text-xs text-zinc-400 uppercase tracking-wider">Cl&eacute; API TMDB</label>
+        <label class="text-sm font-medium text-zinc-400">Cl&eacute; API TMDB</label>
         <input id="apikey-input" type="password" placeholder="Entrez votre cl&eacute; API&hellip;"
           class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
@@ -179,7 +230,7 @@
         <li>Copiez votre <strong class="text-zinc-300">Client ID</strong></li>
       </ol>
       <div>
-        <label class="text-xs text-zinc-400 uppercase tracking-wider">Google OAuth Client ID</label>
+        <label class="text-sm font-medium text-zinc-400">Google OAuth Client ID</label>
         <input id="gd-clientid-input" type="text" placeholder="xxxxxxx.apps.googleusercontent.com"
           class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
       </div>
@@ -272,7 +323,7 @@
       </div>
       <div class="space-y-4">
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Sauvegarde automatique CSV</label>
+          <label class="text-sm font-medium text-zinc-400">Sauvegarde automatique CSV</label>
           <p class="text-xs text-zinc-500 mt-0.5 mb-2">Intervalle en minutes (0 = d&eacute;sactiv&eacute;)</p>
           <div class="flex items-center gap-3">
             <input id="settings-backup-interval" type="number" min="0" max="1440" step="1"
@@ -395,6 +446,35 @@
       </div>
     </div>
     <div class="px-3 py-2 border-t border-surface-border">
+      <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Affichage &amp; Tri</p>
+      <div class="space-y-1 px-1">
+        <div class="flex items-center gap-2 px-2 py-1">
+          <span class="text-sm text-zinc-400 shrink-0">Tri :</span>
+          <select id="sort-select-mobile" class="flex-1 bg-surface border border-surface-border rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-brand text-zinc-300">
+            <option value="recent">R&eacute;cent</option>
+            <option value="name-asc">A &rarr; Z</option>
+            <option value="name-desc">Z &rarr; A</option>
+            <option value="rating-desc">Note &darr;</option>
+            <option value="rating-asc">Note &uarr;</option>
+          </select>
+        </div>
+        <div class="flex gap-1">
+          <button id="btn-view-grid-mobile" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border transition-colors">
+            <i data-lucide="layout-grid" class="w-4 h-4 shrink-0"></i> Grille
+          </button>
+          <button id="btn-view-list-mobile" class="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border transition-colors">
+            <i data-lucide="list" class="w-4 h-4 shrink-0"></i> Liste
+          </button>
+        </div>
+        <button id="btn-bulk-select-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="check-square" class="w-4 h-4 shrink-0"></i> S&eacute;lection multiple
+        </button>
+        <button id="btn-help-mobile" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
+          <i data-lucide="keyboard" class="w-4 h-4 shrink-0"></i> Raccourcis clavier
+        </button>
+      </div>
+    </div>
+    <div class="px-3 py-2 border-t border-surface-border">
       <p class="text-xs uppercase text-zinc-500 font-semibold tracking-widest px-3 mb-2">Import / Export</p>
       <div class="space-y-0.5">
         <label class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer text-zinc-400 hover:bg-surface-border hover:text-white transition-colors">
@@ -484,16 +564,19 @@
       <div class="relative flex-1 min-w-[180px]">
         <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500"></i>
         <input id="search-input" type="text" placeholder="Rechercher une s&eacute;rie&hellip;"
-          class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
+          class="w-full bg-surface-card border border-surface-border rounded-lg pl-9 pr-9 py-2 text-sm focus:outline-none focus:border-brand transition-colors placeholder-zinc-500" />
+        <button id="search-clear" class="hidden absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 text-zinc-500 hover:text-zinc-200 transition-colors rounded" aria-label="Effacer la recherche">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
       </div>
-      <select id="sort-select" class="bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors text-zinc-300" aria-label="Trier par">
+      <select id="sort-select" class="hidden md:block bg-surface-card border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand transition-colors text-zinc-300" aria-label="Trier par">
         <option value="recent">R&eacute;cent</option>
         <option value="name-asc">A &rarr; Z</option>
         <option value="name-desc">Z &rarr; A</option>
         <option value="rating-desc">Note &darr;</option>
         <option value="rating-asc">Note &uarr;</option>
       </select>
-      <div class="flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
+      <div class="hidden md:flex items-center gap-1 bg-surface-card border border-surface-border rounded-lg p-1">
         <button id="btn-view-grid" class="p-1.5 rounded-md transition-colors text-brand" title="Vue grille" aria-label="Vue grille">
           <i data-lucide="layout-grid" class="w-4 h-4"></i>
         </button>
@@ -501,14 +584,14 @@
           <i data-lucide="list" class="w-4 h-4"></i>
         </button>
       </div>
-      <button id="btn-bulk-select" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
+      <button id="btn-bulk-select" class="hidden md:flex p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="S&eacute;lection multiple" aria-label="S&eacute;lection multiple" aria-pressed="false">
         <i data-lucide="check-square" class="w-4 h-4"></i>
       </button>
-      <button id="btn-help" class="p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
+      <button id="btn-help" class="hidden md:flex p-2 rounded-lg bg-surface-card border border-surface-border hover:bg-surface-border transition-colors text-zinc-400 hover:text-zinc-200" title="Raccourcis clavier (?)" aria-label="Raccourcis clavier">
         <i data-lucide="keyboard" class="w-4 h-4"></i>
       </button>
-      <button id="btn-add" class="flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
-        <i data-lucide="plus" class="w-4 h-4"></i> <span class="hidden sm:inline">Ajouter une s&eacute;rie</span><span class="sm:hidden">Ajouter</span>
+      <button id="btn-add" class="hidden md:flex items-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand-hover text-white text-sm font-semibold transition-colors">
+        <i data-lucide="plus" class="w-4 h-4"></i> <span>Ajouter une s&eacute;rie</span>
       </button>
     </header>
 
@@ -596,7 +679,7 @@
       </div>
       <div class="px-6 overflow-y-auto flex-1 space-y-3 pb-2">
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Statut</label>
+          <label class="text-sm font-medium text-zinc-400">Statut</label>
           <select id="edit-status" class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand">
             <option value="watchlist">Watchlist</option>
             <option value="watching">En cours</option>
@@ -607,27 +690,27 @@
           </select>
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Note personnelle (0&ndash;10, par 0.5)</label>
+          <label class="text-sm font-medium text-zinc-400">Note personnelle (0&ndash;10, par 0.5)</label>
           <input id="edit-rating" type="number" min="0" max="10" step="0.5"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Date de d&eacute;but de visionnage</label>
+          <label class="text-sm font-medium text-zinc-400">Date de d&eacute;but de visionnage</label>
           <input id="edit-viewing-date" type="date"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Notes personnelles</label>
+          <label class="text-sm font-medium text-zinc-400">Notes personnelles</label>
           <textarea id="edit-notes" rows="2" placeholder="Vos impressions, remarques&hellip;"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand resize-none placeholder-zinc-600"></textarea>
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Tags (s&eacute;par&eacute;s par des virgules)</label>
+          <label class="text-sm font-medium text-zinc-400">Tags (s&eacute;par&eacute;s par des virgules)</label>
           <input id="edit-tags" type="text" placeholder="ex: action, favourite, rewatch&hellip;"
             class="mt-1 w-full bg-surface border border-surface-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand placeholder-zinc-600" />
         </div>
         <div>
-          <label class="text-xs text-zinc-400 uppercase tracking-wider">Genres TMDB</label>
+          <label class="text-sm font-medium text-zinc-400">Genres TMDB</label>
           <div id="edit-genres-display" class="mt-1 flex flex-wrap gap-1.5 min-h-[1.75rem]"></div>
         </div>
         <div id="edit-tmdb-info" class="hidden flex flex-wrap items-center gap-2 py-1"></div>
@@ -660,6 +743,39 @@
       </div>
     </div>
   </div>
+
+  <!-- STATUS BOTTOM SHEET (mobile) -->
+  <div id="status-sheet" class="hidden fixed inset-0 z-[200]" role="dialog" aria-modal="true" aria-label="Changer le statut">
+    <div id="status-sheet-overlay" class="absolute inset-0 bg-black/60"></div>
+    <div id="status-sheet-panel" class="absolute bottom-0 left-0 right-0 bg-surface-card border-t border-surface-border rounded-t-2xl shadow-2xl pb-8">
+      <div class="w-12 h-1 bg-zinc-600 rounded-full mx-auto mt-3 mb-3"></div>
+      <p class="text-xs text-zinc-500 font-semibold uppercase tracking-wider px-5 pb-2">Changer le statut</p>
+      <button data-sheet-status="watching" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-blue-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0"></span> En cours
+      </button>
+      <button data-sheet-status="completed" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-green-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-green-400 shrink-0"></span> Termin&eacute;
+      </button>
+      <button data-sheet-status="watchlist" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-yellow-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 shrink-0"></span> Watchlist
+      </button>
+      <div class="my-1 border-t border-surface-border mx-5"></div>
+      <button data-sheet-status="abandoned" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-red-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0"></span> Abandonn&eacute;
+      </button>
+      <button data-sheet-status="on-hold" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-orange-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0"></span> En pause
+      </button>
+      <button data-sheet-status="waiting-platform" class="w-full flex items-center gap-3 px-5 py-3.5 text-sm hover:bg-surface-border transition-colors text-purple-400">
+        <span class="w-2.5 h-2.5 rounded-full bg-purple-400 shrink-0"></span> En attente plateforme
+      </button>
+    </div>
+  </div>
+
+  <!-- MOBILE FAB — Ajouter une série -->
+  <button id="btn-add-fab" class="md:hidden fixed right-4 z-30 w-14 h-14 rounded-full bg-brand hover:bg-brand-hover text-white flex items-center justify-center transition-colors" style="bottom:var(--mobile-bottom-offset)" aria-label="Ajouter une s&eacute;rie">
+    <i data-lucide="plus" class="w-7 h-7"></i>
+  </button>
 
   <script type="module" src="/src/app.ts"></script>
 </body>

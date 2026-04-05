@@ -69,6 +69,12 @@ let bulkMode = false;
 const selectedIds = new Set<string>();
 let statsCollapsed: boolean = localStorage.getItem(LS_STATS_COLLAPSED) === 'true';
 let statusPopupTargetId: string | null = null;
+let deleteConfirmTimeout: ReturnType<typeof setTimeout> | null = null;
+
+// ─── HAPTIC FEEDBACK ─────────────────────────
+function haptic(pattern: number | number[] = 50): void {
+  if ('vibrate' in navigator) navigator.vibrate(pattern);
+}
 
 // ─── APP SETTINGS ────────────────────────────
 interface AppSettings {
@@ -123,6 +129,11 @@ function updateUI(): void {
 
 // ─── STATUS POPUP ────────────────────────────
 function showStatusPopup(id: string): void {
+  // On mobile, use a slide-up bottom sheet instead of a floating popup
+  if (window.innerWidth < 768) {
+    showStatusSheet(id);
+    return;
+  }
   const popup = document.getElementById('status-popup');
   if (!popup) return;
   const btn = document.querySelector<HTMLElement>(`[data-status-id="${id}"]`);
@@ -144,6 +155,30 @@ function showStatusPopup(id: string): void {
 
 function hideStatusPopup(): void {
   document.getElementById('status-popup')?.classList.add('hidden');
+  statusPopupTargetId = null;
+}
+
+// ─── STATUS BOTTOM SHEET (mobile) ────────────
+function showStatusSheet(id: string): void {
+  const sheet = document.getElementById('status-sheet');
+  const panel = document.getElementById('status-sheet-panel');
+  if (!sheet || !panel) return;
+  statusPopupTargetId = id;
+  const s = store.getAll().find((x) => x.id === id);
+  sheet.querySelectorAll<HTMLElement>('[data-sheet-status]').forEach((b) => {
+    b.classList.toggle('ring-1', b.dataset['sheetStatus'] === s?.status);
+    b.classList.toggle('ring-brand', b.dataset['sheetStatus'] === s?.status);
+  });
+  sheet.classList.remove('hidden');
+  requestAnimationFrame(() => panel.classList.add('sheet-open'));
+}
+
+function hideStatusSheet(): void {
+  const sheet = document.getElementById('status-sheet');
+  const panel = document.getElementById('status-sheet-panel');
+  if (!sheet || !panel || sheet.classList.contains('hidden')) return;
+  panel.classList.remove('sheet-open');
+  panel.addEventListener('transitionend', () => sheet.classList.add('hidden'), { once: true });
   statusPopupTargetId = null;
 }
 
@@ -401,6 +436,7 @@ function openEditModal(id: string): void {
   if (s.tmdbId && (!s.seasonsData || !s.seasonsData.length)) {
     loadEpisodesForEditing(id, store, tmdbClient, onEpEditDate);
   }
+  resetDeleteButton();
   document.getElementById('modal-edit')?.classList.remove('hidden');
   openEditModalFocus();
 }
@@ -573,8 +609,10 @@ function deleteSeries(): void {
   if (!s) return;
   const deletedSeries = { ...s };
   const name = s.name;
+  haptic([50, 30, 50]);
   store.remove(editingId);
   editingId = null;
+  resetDeleteButton();
   closeEditModal();
   updateUI();
   showToast(
@@ -591,12 +629,64 @@ function deleteSeries(): void {
   );
 }
 
+// ─── DELETE CONFIRMATION ─────────────────────
+function resetDeleteButton(): void {
+  if (deleteConfirmTimeout !== null) {
+    clearTimeout(deleteConfirmTimeout);
+    deleteConfirmTimeout = null;
+  }
+  const btn = document.getElementById('edit-delete');
+  if (btn) {
+    btn.textContent = 'Supprimer';
+    btn.className = 'px-4 py-2 rounded-lg bg-red-900/40 hover:bg-red-800/60 text-red-400 text-sm font-semibold transition-colors';
+  }
+}
+
 // ─── FAVOURITE TOGGLE ────────────────────────
 function toggleFavourite(id: string): void {
   const s = store.getAll().find((x) => x.id === id);
   if (!s) return;
+  haptic(30);
   store.update(id, { isFavourite: !s.isFavourite });
   updateUI();
+}
+
+// ─── STATUS CHANGE (shared by popup + bottom sheet) ──
+async function applyStatusChange(id: string, newStatus: SeriesStatus): Promise<void> {
+  hideStatusPopup();
+  hideStatusSheet();
+  const s = store.getAll().find((x) => x.id === id);
+  if (!s) return;
+  haptic(30);
+
+  let watchDate = todayISO();
+  if (newStatus === 'completed') {
+    const date = await promptDate(`Terminée — ${s.name}`);
+    if (date === null) return;
+    watchDate = date;
+  }
+
+  const updated = { ...s, status: newStatus };
+  if (newStatus === 'completed') {
+    markAllEpisodesWatched(updated);
+    const seasonsData = s.seasonsData || [];
+    const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
+    const existingHistory = s.watchHistory || [];
+    if (!existingHistory.some((h) => h.type === 'series')) {
+      updated.watchHistory = [
+        ...existingHistory,
+        { season: 0, episode: 0, watchedAt: watchDate, type: 'series' as const, episodeCount: totalEps || (s.episodesTotal ?? undefined) },
+      ];
+    }
+  }
+  updateCurrentSeasonFromWatched(updated);
+  if (newStatus === 'completed' && !updated.seasonsData?.length && updated.totalSeasons) {
+    updated.season = updated.totalSeasons;
+  }
+  store.update(id, updated);
+  updateUI();
+  showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
+  if (newStatus === 'completed' && s.tmdbId && hasTmdbKey()) suggestSimilarSeries(s.tmdbId);
 }
 
 // ─── SIMILAR SERIES ──────────────────────────
@@ -761,6 +851,7 @@ async function addSeriesFromTmdb(tmdbResult: TmdbSearchResult): Promise<void> {
     createdBy: details?.created_by?.map((c) => c.name).join(', ') || undefined,
   };
   store.add(series);
+  haptic(50);
   closeSimilarSeriesModal();
   closeAddModal();
   updateUI();
@@ -811,6 +902,11 @@ function importJSON(file: File): void {
 function applySort(value: SortOption): void {
   sortBy = value;
   localStorage.setItem(LS_SORT_PREF, value);
+  // Sync both desktop and mobile sort selects
+  const desktopSelect = document.getElementById('sort-select') as HTMLSelectElement | null;
+  const mobileSelect = document.getElementById('sort-select-mobile') as HTMLSelectElement | null;
+  if (desktopSelect) desktopSelect.value = value;
+  if (mobileSelect) mobileSelect.value = value;
   updateUI();
 }
 
@@ -820,8 +916,12 @@ function applyViewToggle(list: boolean): void {
   localStorage.setItem(LS_VIEW_PREF, list ? 'list' : 'grid');
   const gridBtn = document.getElementById('btn-view-grid');
   const listBtn = document.getElementById('btn-view-list');
+  const gridBtnMobile = document.getElementById('btn-view-grid-mobile');
+  const listBtnMobile = document.getElementById('btn-view-list-mobile');
   if (gridBtn) gridBtn.classList.toggle('text-brand', !list);
   if (listBtn) listBtn.classList.toggle('text-brand', list);
+  if (gridBtnMobile) gridBtnMobile.classList.toggle('text-brand', !list);
+  if (listBtnMobile) listBtnMobile.classList.toggle('text-brand', list);
   updateUI();
 }
 
@@ -870,14 +970,46 @@ function closeMobileDrawer(): void {
 // ─── EVENT LISTENERS ─────────────────────────
 function setupEventListeners(): void {
   document.getElementById('btn-add')?.addEventListener('click', openAddModal);
+  document.getElementById('btn-add-fab')?.addEventListener('click', openAddModal);
   document.getElementById('empty-add-btn')?.addEventListener('click', openAddModal);
   document.getElementById('modal-close')?.addEventListener('click', closeAddModal);
   document.getElementById('edit-modal-close')?.addEventListener('click', () => {
     editingId = null;
+    resetDeleteButton();
     closeEditModal();
   });
   document.getElementById('edit-save')?.addEventListener('click', saveEdit);
-  document.getElementById('edit-delete')?.addEventListener('click', deleteSeries);
+
+  // Two-step delete confirmation
+  document.getElementById('edit-delete')?.addEventListener('click', () => {
+    if (deleteConfirmTimeout !== null) {
+      // Second click — confirm delete
+      deleteSeries();
+    } else {
+      // First click — ask for confirmation
+      const btn = document.getElementById('edit-delete');
+      if (btn) {
+        btn.textContent = 'Confirmer ?';
+        btn.className = 'px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors';
+      }
+      deleteConfirmTimeout = setTimeout(resetDeleteButton, 3000);
+    }
+  });
+
+  // Search clear button
+  document.getElementById('search-input')?.addEventListener('input', (e) => {
+    searchQuery = (e.target as HTMLInputElement).value;
+    const clearBtn = document.getElementById('search-clear');
+    if (clearBtn) clearBtn.classList.toggle('hidden', !searchQuery);
+    updateUI();
+  });
+  document.getElementById('search-clear')?.addEventListener('click', () => {
+    const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+    if (searchInput) { searchInput.value = ''; searchQuery = ''; }
+    document.getElementById('search-clear')?.classList.add('hidden');
+    updateUI();
+    searchInput?.focus();
+  });
 
   document.getElementById('btn-export')?.addEventListener('click', () => {
     exportToCSV(store.getAll());
@@ -921,6 +1053,10 @@ function setupEventListeners(): void {
     if (e.target === document.getElementById('modal-settings')) closeSettingsModal();
   });
   document.getElementById('apikey-close')?.addEventListener('click', closeApiKeyModal);
+  // Close apikey modal on backdrop click (only when key is already configured)
+  document.getElementById('modal-apikey')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('modal-apikey') && hasTmdbKey()) closeApiKeyModal();
+  });
   document.getElementById('apikey-save')?.addEventListener('click', validateAndSaveTmdbKey);
   (document.getElementById('apikey-input') as HTMLInputElement | null)?.addEventListener(
     'keydown',
@@ -957,6 +1093,7 @@ function setupEventListeners(): void {
   document.getElementById('modal-edit')?.addEventListener('click', (e) => {
     if (e.target === document.getElementById('modal-edit')) {
       editingId = null;
+      resetDeleteButton();
       closeEditModal();
     }
   });
@@ -972,6 +1109,12 @@ function setupEventListeners(): void {
   });
   document.getElementById('similar-modal-close')?.addEventListener('click', closeSimilarSeriesModal);
   document.getElementById('similar-modal-skip')?.addEventListener('click', closeSimilarSeriesModal);
+  // Date picker: close on backdrop click (triggers cancel)
+  document.getElementById('date-picker-modal')?.addEventListener('click', (e) => {
+    if (e.target === document.getElementById('date-picker-modal')) {
+      document.getElementById('date-picker-cancel')?.click();
+    }
+  });
 
   // Theme toggle
   document.getElementById('btn-theme')?.addEventListener('click', () => {
@@ -981,11 +1124,6 @@ function setupEventListeners(): void {
 
   // Help modal trigger
   document.getElementById('btn-help')?.addEventListener('click', openHelpModal);
-
-  document.getElementById('search-input')?.addEventListener('input', (e) => {
-    searchQuery = (e.target as HTMLInputElement).value;
-    updateUI();
-  });
 
   document.getElementById('tmdb-search-input')?.addEventListener('input', (e) => {
     const query = (e.target as HTMLInputElement).value;
@@ -1036,46 +1174,24 @@ function setupEventListeners(): void {
     });
   });
 
-  // Status popup actions
+  // Status popup actions — now use shared applyStatusChange
   document.getElementById('status-popup')?.querySelectorAll<HTMLElement>('[data-set-status]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
+    btn.addEventListener('click', () => {
       const id = statusPopupTargetId;
       const newStatus = btn.dataset['setStatus'] as SeriesStatus;
-      hideStatusPopup();
-      if (!id || !newStatus) return;
-      const s = store.getAll().find((x) => x.id === id);
-      if (!s) return;
-
-      let watchDate = todayISO();
-      if (newStatus === 'completed') {
-        const date = await promptDate(`Terminée — ${s.name}`);
-        if (date === null) return; // User cancelled
-        watchDate = date;
-      }
-
-      const updated = { ...s, status: newStatus };
-      if (newStatus === 'completed') {
-        markAllEpisodesWatched(updated);
-        const seasonsData = s.seasonsData || [];
-        const totalEps = seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0);
-        const existingHistory = s.watchHistory || [];
-        if (!existingHistory.some((h) => h.type === 'series')) {
-          updated.watchHistory = [
-            ...existingHistory,
-            { season: 0, episode: 0, watchedAt: watchDate, type: 'series' as const, episodeCount: totalEps || (s.episodesTotal ?? undefined) },
-          ];
-        }
-      }
-      updateCurrentSeasonFromWatched(updated);
-      if (newStatus === 'completed' && !updated.seasonsData?.length && updated.totalSeasons) {
-        updated.season = updated.totalSeasons;
-      }
-      store.update(id, updated);
-      updateUI();
-      showToast(`"${s.name}" → ${statusLabel(newStatus)}`, 'success');
-      if (newStatus === 'completed' && s.tmdbId && hasTmdbKey()) suggestSimilarSeries(s.tmdbId);
+      if (id && newStatus) applyStatusChange(id, newStatus);
     });
   });
+
+  // Status bottom sheet actions
+  document.getElementById('status-sheet')?.querySelectorAll<HTMLElement>('[data-sheet-status]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const id = statusPopupTargetId;
+      const newStatus = btn.dataset['sheetStatus'] as SeriesStatus;
+      if (id && newStatus) applyStatusChange(id, newStatus);
+    });
+  });
+  document.getElementById('status-sheet-overlay')?.addEventListener('click', hideStatusSheet);
 
   // Close status popup on outside click
   document.addEventListener('click', (e) => {
@@ -1305,6 +1421,31 @@ function setupEventListeners(): void {
     btn.addEventListener('click', closeMobileDrawer);
   });
 
+  // Mobile drawer: sort, view, bulk, help
+  document.getElementById('sort-select-mobile')?.addEventListener('change', (e) => {
+    applySort((e.target as HTMLSelectElement).value as SortOption);
+    closeMobileDrawer();
+  });
+  document.getElementById('btn-view-grid-mobile')?.addEventListener('click', () => {
+    applyViewToggle(false);
+    closeMobileDrawer();
+  });
+  document.getElementById('btn-view-list-mobile')?.addEventListener('click', () => {
+    applyViewToggle(true);
+    closeMobileDrawer();
+  });
+  document.getElementById('btn-bulk-select-mobile')?.addEventListener('click', () => {
+    closeMobileDrawer();
+    bulkMode = !bulkMode;
+    document.getElementById('btn-bulk-select')?.setAttribute('aria-pressed', String(bulkMode));
+    if (!bulkMode) selectedIds.clear();
+    updateUI();
+  });
+  document.getElementById('btn-help-mobile')?.addEventListener('click', () => {
+    closeMobileDrawer();
+    openHelpModal();
+  });
+
   // Watch history date editing (event delegation on stats-banner)
   document.getElementById('stats-banner')?.addEventListener('change', (e) => {
     const target = e.target as HTMLInputElement;
@@ -1330,6 +1471,7 @@ function setupEventListeners(): void {
     if (e.key === 'Escape') {
       closeAddModal();
       editingId = null;
+      resetDeleteButton();
       closeEditModal();
       closeGdSetupModal();
       closeHelpModal();
@@ -1337,6 +1479,7 @@ function setupEventListeners(): void {
       closeSettingsModal();
       closeMobileDrawer();
       hideStatusPopup();
+      hideStatusSheet();
       if (hasTmdbKey()) closeApiKeyModal();
       if (bulkMode) exitBulkMode();
       return;
@@ -1397,9 +1540,11 @@ applyTheme(localStorage.getItem(LS_THEME) === 'light');
 // Apply persisted view pref to buttons
 applyViewToggle(listView);
 
-// Apply persisted sort pref to dropdown
+// Apply persisted sort pref to dropdowns (desktop + mobile)
 const sortSelectEl = document.getElementById('sort-select') as HTMLSelectElement | null;
+const sortSelectMobileEl = document.getElementById('sort-select-mobile') as HTMLSelectElement | null;
 if (sortSelectEl) sortSelectEl.value = sortBy;
+if (sortSelectMobileEl) sortSelectMobileEl.value = sortBy;
 
 updateUI();
 applyView();
