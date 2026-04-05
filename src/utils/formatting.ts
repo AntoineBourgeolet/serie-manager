@@ -1,4 +1,4 @@
-import type { SeriesStatus } from '../types';
+import type { SeriesStatus, Series } from '../types';
 import { AVG_DAYS_PER_MONTH } from '../config/constants';
 
 export function generateId(): string {
@@ -18,6 +18,22 @@ export function yesterdayISO(): string {
   const d = new Date();
   d.setDate(d.getDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+export function daysAgoISO(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+export function lastUsedWatchDate(series: Series): string {
+  const history = series.watchHistory;
+  if (!history || !history.length) return todayISO();
+  const latest = history.reduce(
+    (best, h) => (h.watchedAt > best ? h.watchedAt : best),
+    history[0].watchedAt
+  );
+  return latest || todayISO();
 }
 
 export function statusLabel(s: SeriesStatus): string {

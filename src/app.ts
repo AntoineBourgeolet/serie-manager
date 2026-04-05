@@ -21,7 +21,7 @@ import {
   BACKUP_REMINDER_THRESHOLD,
   BACKUP_REMINDER_DAYS,
 } from './config/constants';
-import { generateId, todayISO, yesterdayISO, statusLabel } from './utils/formatting';
+import { generateId, todayISO, yesterdayISO, daysAgoISO, lastUsedWatchDate, statusLabel } from './utils/formatting';
 import { sanitize } from './utils/validation';
 import { exportToCSV, importCSV, generateCSV } from './utils/csv';
 import { saveToGoogleDrive } from './api/googleDrive';
@@ -347,7 +347,7 @@ function openEditModal(id: string): void {
   if (ratingEl) ratingEl.value = s.rating != null ? String(s.rating) : '';
   if (dateEl) dateEl.value = s.viewingDate || todayISO();
   const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
-  if (watchDateEl) watchDateEl.value = todayISO();
+  if (watchDateEl) watchDateEl.value = lastUsedWatchDate(s);
   if (notesEl) notesEl.value = s.notes || '';
   if (tagsEl) tagsEl.value = s.tags ? s.tags.join(', ') : '';
   if (genresEl) {
@@ -403,19 +403,21 @@ function saveEdit(): void {
 
   const updated = { ...s, status: newStatus, rating, viewingDate, notes, tags };
 
+  // Reference to the episodes section container (used both for checkbox reading and per-season dates)
+  const episodesContainer = document.getElementById('edit-episodes-section');
+
   // Collect watched episodes from checkboxes (or mark all if completed)
   let watchedEpisodes = s.watchedEpisodes;
   if (newStatus === 'completed') {
     markAllEpisodesWatched(updated);
     watchedEpisodes = updated.watchedEpisodes;
   } else {
-    const container = document.getElementById('edit-episodes-section');
     const seasonsData = s.seasonsData || [];
-    if (container && seasonsData.length) {
+    if (episodesContainer && seasonsData.length) {
       const newWatched: Record<string, number[]> = {};
       seasonsData.forEach((season) => {
         const sn = String(season.season_number);
-        const epChecks = container.querySelectorAll<HTMLInputElement>(`[data-ep-season="${sn}"]`);
+        const epChecks = episodesContainer.querySelectorAll<HTMLInputElement>(`[data-ep-season="${sn}"]`);
         newWatched[sn] = Array.from(epChecks)
           .filter((e) => e.checked)
           .map((e) => parseInt(e.dataset['epNum'] || '0'));
@@ -426,7 +428,6 @@ function saveEdit(): void {
   }
 
   // Record new watched episodes in watchHistory — grouped by season/series
-  const today = watchDate;
   const existingHistory = s.watchHistory || [];
   // Keep existing history for episodes that are still watched
   const retainedHistory = existingHistory.filter((h) => {
@@ -460,6 +461,10 @@ function saveEdit(): void {
     const newEps = eps.filter((ep) => !oldEps.includes(ep));
     if (!newEps.length) return;
 
+    // Per-season date override: if the season has its own date input, use it; otherwise fall back to global watchDate
+    const seasonDateEl = episodesContainer?.querySelector<HTMLInputElement>(`[data-season-watch-date="${sn}"]`);
+    const seasonDate = seasonDateEl?.value || watchDate;
+
     const seasonData = seasonsData.find((sd) => String(sd.season_number) === sn);
     const totalInSeason = seasonData ? seasonData.episode_count : eps.length;
     const allNewSeasonWatched = eps.length >= totalInSeason && newEps.length > 0;
@@ -478,7 +483,7 @@ function saveEdit(): void {
       newHistory.push({
         season: Number(sn),
         episode: 0,
-        watchedAt: today,
+        watchedAt: seasonDate,
         type: 'season',
         seasonLabel: seasonData?.name || `Saison ${sn}`,
         episodeCount: totalInSeason,
@@ -486,7 +491,7 @@ function saveEdit(): void {
     } else {
       // Individual episodes
       newEps.forEach((ep) => {
-        newHistory.push({ season: Number(sn), episode: ep, watchedAt: today, type: 'episode' });
+        newHistory.push({ season: Number(sn), episode: ep, watchedAt: seasonDate, type: 'episode' });
       });
     }
   });
@@ -513,7 +518,7 @@ function saveEdit(): void {
       newHistory.push({
         season: 0,
         episode: 0,
-        watchedAt: today,
+        watchedAt: watchDate,
         type: 'series',
         episodeCount: seasonsData.reduce((sum, sd) => sum + sd.episode_count, 0),
       });
@@ -1269,6 +1274,33 @@ function setupEventListeners(): void {
   document.getElementById('watch-date-yesterday')?.addEventListener('click', () => {
     const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
     if (watchDateEl) watchDateEl.value = yesterdayISO();
+  });
+
+  document.getElementById('watch-date-minus2')?.addEventListener('click', () => {
+    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+    if (watchDateEl) watchDateEl.value = daysAgoISO(2);
+  });
+
+  document.getElementById('watch-date-minus7')?.addEventListener('click', () => {
+    const watchDateEl = document.getElementById('edit-watch-date') as HTMLInputElement | null;
+    if (watchDateEl) watchDateEl.value = daysAgoISO(7);
+  });
+
+  // Watch history date editing (event delegation on stats-banner)
+  document.getElementById('stats-banner')?.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.matches('[data-history-date]')) return;
+    const seriesId = target.dataset['seriesId'];
+    const historyIdx = parseInt(target.dataset['historyIdx'] || '-1', 10);
+    if (!seriesId || historyIdx < 0) return;
+    const s = store.getAll().find((x) => x.id === seriesId);
+    if (!s) return;
+    const history = [...(s.watchHistory || [])];
+    if (historyIdx >= history.length) return;
+    history[historyIdx] = { ...history[historyIdx], watchedAt: target.value };
+    store.update(seriesId, { watchHistory: history });
+    showToast('Date mise à jour.', 'success');
+    renderStats(store);
   });
 
   // Keyboard shortcuts (global)

@@ -4,6 +4,7 @@ import type { SeriesStore } from '../store/seriesStore';
 import type { TmdbClient } from '../api/tmdb';
 import { sanitize } from '../utils/validation';
 import { showToast } from './modals';
+import { todayISO } from '../utils/formatting';
 
 export function extractSeasonsData(details: TmdbSeriesDetails): SeasonData[] {
   if (!details || !details.seasons) return [];
@@ -110,6 +111,7 @@ export function renderEditEpisodesSection(
             const allWatched = watchedCount >= totalCount;
             const anyWatched = watchedCount > 0;
             const pct = totalCount > 0 ? Math.round((watchedCount / totalCount) * 100) : 0;
+            const history = s.watchHistory || [];
             return `
             <div class="bg-surface rounded-xl border border-surface-border overflow-hidden">
               <div class="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-zinc-800/50 transition-colors select-none" data-toggle-season="${season.season_number}" role="button" tabindex="0" aria-expanded="false">
@@ -133,12 +135,33 @@ export function renderEditEpisodesSection(
                   ${Array.from({ length: totalCount }, (_, i) => i + 1)
                     .map((ep) => {
                       const isWatched = seasonWatched.includes(ep);
-                      return `<label class="ep-tile inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isWatched ? 'bg-brand text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}">
+                      const watchEntry = history
+                        .filter(
+                          (h) =>
+                            (h.season === season.season_number && h.episode === ep && (!h.type || h.type === 'episode')) ||
+                            (h.type === 'season' && h.season === season.season_number) ||
+                            h.type === 'series'
+                        )
+                        .sort((a, b) => b.watchedAt.localeCompare(a.watchedAt))[0];
+                      const titleAttr = watchEntry ? ` title="Vu le ${watchEntry.watchedAt}"` : '';
+                      const badgeDot = watchEntry
+                        ? '<span class="absolute bottom-0.5 inset-x-0 flex justify-center pointer-events-none"><span class="w-1 h-1 rounded-full bg-white/50 block"></span></span>'
+                        : '';
+                      return `<label class="ep-tile relative inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${isWatched ? 'bg-brand text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}"${titleAttr}>
                         <input type="checkbox" class="sr-only" data-ep-season="${sn}" data-ep-num="${ep}" aria-label="Épisode ${ep}" ${isWatched ? 'checked' : ''}>
-                        ${ep}
+                        ${ep}${badgeDot}
                       </label>`;
                     })
                     .join('')}
+                </div>
+                <div class="mt-2 pt-2 border-t border-surface-border/50 flex items-center gap-2">
+                  <label class="text-xs text-zinc-500 shrink-0">Date saison :</label>
+                  <input type="date" data-season-watch-date="${sn}"
+                    class="flex-1 bg-surface border border-surface-border rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-brand"
+                    title="Date de visionnage pour cette saison (remplace la date globale)" />
+                  <button type="button" data-season-date-today="${sn}"
+                    class="shrink-0 px-2 py-1 rounded-lg text-xs bg-zinc-700 hover:bg-zinc-600 transition-colors text-zinc-300"
+                    title="Aujourd'hui">Auj.</button>
                 </div>
               </div>
             </div>`;
@@ -219,6 +242,15 @@ export function renderEditEpisodesSection(
         if (countEl) countEl.textContent = `${checkedCount}/${season.episode_count}`;
       });
     });
+
+    // Per-season "today" button
+    const seasonDateAujBtn = container.querySelector<HTMLElement>(`[data-season-date-today="${sn}"]`);
+    if (seasonDateAujBtn) {
+      seasonDateAujBtn.addEventListener('click', () => {
+        const dateInput = container.querySelector<HTMLInputElement>(`[data-season-watch-date="${sn}"]`);
+        if (dateInput) dateInput.value = todayISO();
+      });
+    }
   });
 
   document.getElementById('refresh-episodes-btn')?.addEventListener('click', () => {

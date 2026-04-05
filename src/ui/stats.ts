@@ -203,7 +203,7 @@ function statusBreakdownChart(store: SeriesStore): string {
     </div>`;
 }
 
-function watchHistorySection(allHistory: (WatchHistoryEntry & { seriesName: string })[]): string {
+function watchHistorySection(allHistory: (WatchHistoryEntry & { seriesName: string; seriesId: string; historyIdx: number })[]): string {
   if (!allHistory.length) return '';
   const recent = allHistory
     .slice()
@@ -226,7 +226,12 @@ function watchHistorySection(allHistory: (WatchHistoryEntry & { seriesName: stri
       return `<div class="flex items-center gap-3 py-1.5 border-b border-surface-border last:border-0">
           ${badge}
           <span class="text-sm text-zinc-300 flex-1 truncate">${label}</span>
-          <span class="text-xs text-zinc-500 shrink-0">${h.watchedAt}</span>
+          <input type="date" class="text-xs text-zinc-500 bg-transparent border-0 border-b border-transparent hover:border-zinc-600 focus:border-brand focus:outline-none shrink-0 w-28 cursor-pointer"
+            value="${h.watchedAt}"
+            data-history-date
+            data-series-id="${h.seriesId}"
+            data-history-idx="${h.historyIdx}"
+            title="Modifier la date" />
         </div>`;
     })
     .join('');
@@ -349,10 +354,10 @@ export function renderStats(store: SeriesStore): void {
     return;
   }
 
-  const allHistory: (WatchHistoryEntry & { seriesName: string })[] = [];
+  const allHistory: (WatchHistoryEntry & { seriesName: string; seriesId: string; historyIdx: number })[] = [];
   store.getAll().forEach((series) => {
-    (series.watchHistory || []).forEach((h) =>
-      allHistory.push({ ...h, seriesName: series.name })
+    (series.watchHistory || []).forEach((h, idx) =>
+      allHistory.push({ ...h, seriesName: series.name, seriesId: series.id, historyIdx: idx })
     );
   });
 
